@@ -18,16 +18,18 @@ A powerful Flask-based e-commerce application that aggregates products from mult
 *   **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
 *   **APIs**: SerpAPI (Google Shopping), FakeStoreAPI, DummyJSON, Platzi Fake Store
 
-## 📦 Project Structure
+## � Project Structure
 
-The project has been simplified for ease of use:
-
-*   `app/routes.py`: Handles all website URLs and API endpoints.
-*   `app/api_clients.py`: Manages data fetching and normalization from external APIs.
-*   `app/database.py`: Handles all database interactions (Users, Orders).
-*   `app/config.py`: Configuration settings.
-*   `templates/`: HTML files for the frontend.
-*   `static/`: CSS and assets.
+*   `app/__init__.py`: Initializes the Flask app and registers blueprints.
+*   `app/api_clients.py`: Fetches and normalizes product data from external APIs.
+*   `app/config.py`: Loads configuration and environment variables.
+*   `app/database.py`: Manages MySQL database connections and operations.
+*   `app/routes.py`: Handles all URL routes, authentication, and cart logic.
+*   `static/css/style.css`: Contains custom styling for the application.
+*   `templates/`: Contains HTML files for the user interface.
+*   `app.py`: Main entry point to start the Flask server.
+*   `.env`: Stores sensitive credentials like API keys and database info.
+*   `requirements.txt`: Lists Python libraries required to run the app.
 
 ## ⚙️ Setup & Installation
 
