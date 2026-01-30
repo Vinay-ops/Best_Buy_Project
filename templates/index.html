@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Best Buy Finder - Home{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section text-center position-relative overflow-hidden">
+    <div class="container position-relative z-1">
+        <div class="row justify-content-center">
+            <div class="col-lg-8 animate-fade-in">
+                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-2 mb-3 fw-bold">
+                    <i class="fas fa-star me-1"></i> #1 Price Comparison Tool
+                </span>
+                <h1 class="hero-title mb-4">Find the Best Deals <br>Across the Web</h1>
+                <p class="lead text-muted mb-5 px-lg-5">
+                    Compare prices, track availability, and save money on your favorite electronics, gadgets, and more.
+                    We aggregate the best deals so you don't have to.
+                </p>
+                <div class="d-flex justify-content-center gap-3 animate-slide-in-up">
+                    <a href="/products" class="btn btn-primary-custom btn-lg">
+                        <i class="fas fa-search me-2"></i>Start Browsing
+                    </a>
+                    {% if not session.get('user_id') %}
+                    <a href="/register" class="btn btn-outline-dark btn-lg rounded-pill px-4">
+                        Join Now
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Abstract Shapes Background -->
+    <div class="position-absolute top-0 start-0 w-100 h-100 z-0 opacity-50" style="pointer-events: none;">
+        <div class="position-absolute top-10 start-0 translate-middle rounded-circle bg-primary opacity-10" style="width: 300px; height: 300px; filter: blur(50px);"></div>
+        <div class="position-absolute bottom-0 end-0 translate-middle rounded-circle bg-info opacity-10" style="width: 400px; height: 400px; filter: blur(60px);"></div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-4 animate-slide-left delay-100">
+                <div class="card h-100 border-0 shadow-sm p-4 text-center feature-card hover-lift">
+                    <div class="d-flex justify-content-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                    </div>
+                    <h3 class="h4 fw-bold mb-3">Real-Time Updates</h3>
+                    <p class="text-muted">Get the latest prices and stock availability instantly. Our crawlers work 24/7.</p>
+                </div>
+            </div>
+            <div class="col-md-4 animate-fade-in delay-200">
+                <div class="card h-100 border-0 shadow-sm p-4 text-center feature-card hover-lift">
+                    <div class="d-flex justify-content-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-tags"></i>
+                        </div>
+                    </div>
+                    <h3 class="h4 fw-bold mb-3">Best Price Guarantee</h3>
+                    <p class="text-muted">We compare multiple sources to ensure you never overpay for your tech gear.</p>
+                </div>
+            </div>
+            <div class="col-md-4 animate-slide-right delay-300">
+                <div class="card h-100 border-0 shadow-sm p-4 text-center feature-card hover-lift">
+                    <div class="d-flex justify-content-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                    </div>
+                    <h3 class="h4 fw-bold mb-3">Secure Shopping</h3>
+                    <p class="text-muted">Your data is protected. Shop with confidence using our secure platform.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5 my-5">
+    <div class="container">
+        <div class="card bg-dark text-white border-0 rounded-4 overflow-hidden shadow-lg animate-fade-in">
+            <div class="card-body p-5 text-center position-relative">
+                <div class="position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(45deg, rgba(13,110,253,0.9), rgba(13,202,240,0.9)); z-index: 0;"></div>
+                <div class="position-relative z-1">
+                    <h2 class="display-5 fw-bold mb-4">Ready to Save Big?</h2>
+                    <p class="lead mb-4 opacity-90">Join thousands of smart shoppers finding the best deals every day.</p>
+                    <a href="/products" class="btn btn-light btn-lg rounded-pill px-5 fw-bold text-primary hover-scale">
+                        Shop Now
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

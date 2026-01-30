@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}My Orders - Best Buy Finder{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex align-items-center justify-content-between mb-4 animate-fade-in">
+        <div>
+            <h1 class="fw-bold mb-0">Order History</h1>
+            <p class="text-muted mt-2">Track and manage your recent purchases</p>
+        </div>
+        <a href="/products" class="btn btn-outline-primary rounded-pill">
+            <i class="fas fa-shopping-bag me-2"></i>Continue Shopping
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-lg rounded-4 overflow-hidden animate-slide-in-up">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="border-0 p-4">Order ID</th>
+                            <th class="border-0 p-4">Date</th>
+                            <th class="border-0 p-4">Status</th>
+                            <th class="border-0 p-4 text-end">Total Amount</th>
+                            <th class="border-0 p-4 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody">
+                        <!-- Orders injected here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="loadingDiv" class="text-center py-5">
+                <div class="spinner-custom mx-auto mb-3"></div>
+                <p class="text-muted">Loading your orders...</p>
+            </div>
+
+            <div id="emptyState" class="text-center py-5 d-none">
+                <div class="mb-3">
+                    <i class="fas fa-box-open fa-3x text-muted opacity-50"></i>
+                </div>
+                <h4 class="fw-bold text-muted">No orders yet</h4>
+                <p class="text-muted mb-4">You haven't placed any orders yet.</p>
+                <a href="/products" class="btn btn-primary-custom">Start Shopping</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order Details Modal -->
+<div class="modal fade" id="orderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Order Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="modalContent"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allOrders = [];
+
+    document.addEventListener('DOMContentLoaded', loadOrders);
+
+    async function loadOrders() {
+        const loadingDiv = document.getElementById('loadingDiv');
+        const tableBody = document.getElementById('ordersTableBody');
+        const emptyState = document.getElementById('emptyState');
+
+        try {
+            const response = await fetch('/api/orders', { credentials: 'include' });
+            
+            if (response.ok) {
+                const data = await response.json();
+                allOrders = data.orders; // Store globally
+                loadingDiv.style.display = 'none';
+                
+                if (allOrders.length === 0) {
+                    emptyState.classList.remove('d-none');
+                } else {
+                    allOrders.forEach((order, index) => {
+                        const tr = document.createElement('tr');
+                        tr.className = 'animate-fade-in';
+                        tr.style.animationDelay = `${index * 0.1}s`;
+                        
+                        const date = new Date(order.created_at).toLocaleDateString('en-US', {
+                            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                        });
+                        
+                        tr.innerHTML = `
+                            <td class="p-4 fw-bold text-primary">#${order.order_id}</td>
+                            <td class="p-4 text-muted">${date}</td>
+                            <td class="p-4">
+                                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill">
+                                    Completed
+                                </span>
+                            </td>
+                            <td class="p-4 text-end fw-bold">$${parseFloat(order.total_amount || 0).toFixed(2)}</td>
+                            <td class="p-4 text-center">
+                                <button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="viewOrderDetails(${order.order_id})">
+                                    View Details
+                                </button>
+                            </td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+                }
+            } else {
+                if (response.status === 401) {
+                     window.location.href = '/login';
+                } else {
+                    loadingDiv.innerHTML = '<div class="text-danger">Failed to load orders</div>';
+                }
+            }
+        } catch (error) {
+            loadingDiv.innerHTML = '<div class="text-danger">Network error</div>';
+        }
+    }
+
+    function viewOrderDetails(orderId) {
+        const order = allOrders.find(o => o.order_id === orderId);
+        if (!order) return;
+
+        const modalContent = document.getElementById('modalContent');
+        
+        let itemsHtml = order.items.map(item => `
+            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-3">
+                <div>
+                    <h6 class="fw-bold mb-1">${item.product_title}</h6>
+                    <small class="text-muted">Quantity: ${item.quantity}</small>
+                </div>
+                <div class="text-end">
+                    <div class="fw-bold">$${parseFloat(item.price).toFixed(2)}</div>
+                    <small class="text-muted">Total: $${(item.price * item.quantity).toFixed(2)}</small>
+                </div>
+            </div>
+        `).join('');
+
+        modalContent.innerHTML = `
+            <div class="mb-4">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Order ID:</span>
+                    <span class="fw-bold">#${order.order_id}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Date:</span>
+                    <span class="fw-bold">${new Date(order.created_at).toLocaleString()}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted">Total Amount:</span>
+                    <span class="fw-bold text-primary fs-5">$${parseFloat(order.total_amount).toFixed(2)}</span>
+                </div>
+            </div>
+            <h6 class="fw-bold mb-3">Items</h6>
+            <div class="bg-light rounded-3 p-3">
+                ${itemsHtml}
+            </div>
+        `;
+        
+        const modal = new bootstrap.Modal(document.getElementById('orderModal'));
+        modal.show();
+    }
+</script>
+{% endblock %}

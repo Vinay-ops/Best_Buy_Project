@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Shopping Cart - Best Buy Finder{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="fw-bold mb-4 animate-fade-in">Shopping Cart</h1>
+
+    <div class="row g-4">
+        <!-- Cart Items -->
+        <div class="col-lg-8">
+            <div id="cartItems" class="d-flex flex-column gap-3 animate-slide-in-up">
+                <!-- Cart items injected here -->
+                <div class="text-center py-5">
+                    <div class="spinner-custom mx-auto mb-3"></div>
+                    <p class="text-muted">Loading cart...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Summary -->
+        <div class="col-lg-4 animate-slide-left delay-100">
+            <div class="card border-0 shadow-sm rounded-4 position-sticky" style="top: 100px;">
+                <div class="card-body p-4">
+                    <h4 class="fw-bold mb-4">Order Summary</h4>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Subtotal</span>
+                        <span class="fw-bold" id="subtotal">$0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Shipping</span>
+                        <span class="text-success">Free</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="text-muted">Tax Estimate</span>
+                        <span class="fw-bold" id="tax">$0.00</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between mb-4">
+                        <span class="h5 fw-bold">Total</span>
+                        <span class="h5 fw-bold text-primary" id="total">$0.00</span>
+                    </div>
+                    
+                    <button id="checkoutBtn" class="btn btn-primary-custom w-100 btn-lg mb-3" disabled onclick="checkout()">
+                        Proceed to Checkout
+                    </button>
+                    <button class="btn btn-outline-danger w-100 rounded-pill" onclick="clearCart()">
+                        <i class="fas fa-trash-alt me-2"></i>Clear Cart
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let cartData = [];
+
+    document.addEventListener('DOMContentLoaded', loadCart);
+
+    async function loadCart() {
+        try {
+            const response = await fetch('/api/cart', { credentials: 'include' });
+            if (response.ok) {
+                const data = await response.json();
+                cartData = data.cart;
+                displayCart(cartData);
+            } else {
+                if (response.status === 401) {
+                    document.getElementById('cartItems').innerHTML = `
+                        <div class="text-center py-5 bg-white rounded-4 shadow-sm">
+                            <i class="fas fa-lock fa-3x text-muted mb-3"></i>
+                            <h3>Please Login</h3>
+                            <p class="text-muted mb-4">You need to be logged in to view your cart.</p>
+                            <a href="/login" class="btn btn-primary-custom">Login Now</a>
+                        </div>
+                    `;
+                } else {
+                    showMessage('Failed to load cart', 'error');
+                }
+            }
+        } catch (error) {
+            showMessage('Network error: ' + error.message, 'error');
+        }
+    }
+
+    function displayCart(items) {
+        const container = document.getElementById('cartItems');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+        
+        if (!items || items.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-5 bg-white rounded-4 shadow-sm">
+                    <i class="fas fa-shopping-basket fa-3x text-muted mb-3"></i>
+                    <h3>Your cart is empty</h3>
+                    <p class="text-muted mb-4">Looks like you haven't added anything yet.</p>
+                    <a href="/products" class="btn btn-primary-custom">Start Shopping</a>
+                </div>
+            `;
+            updateSummary(0);
+            checkoutBtn.disabled = true;
+            return;
+        }
+
+        checkoutBtn.disabled = false;
+        container.innerHTML = '';
+        let subtotal = 0;
+
+        items.forEach((item, index) => {
+            // Price calculation assumes item.price is a number or string number
+            // If item.price is string like "$10.00", we need to parse it.
+            // Assuming backend sends raw number or clean string.
+            const price = parseFloat(item.price);
+            const total = price * item.quantity;
+            subtotal += total;
+
+            const div = document.createElement('div');
+            div.className = 'card border-0 shadow-sm rounded-4 overflow-hidden animate-slide-in-up';
+            div.style.animationDelay = `${index * 0.1}s`;
+            const imgContent = item.image ? 
+                `<img src="${item.image}" alt="${item.name}" class="w-100 h-100" style="object-fit: contain;">` :
+                `<i class="fas fa-box fa-2x text-secondary"></i>`;
+
+            div.innerHTML = `
+                <div class="card-body p-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-2 mb-3 mb-md-0">
+                            <div class="bg-light rounded-3 p-2 d-flex align-items-center justify-content-center overflow-hidden" style="height: 80px; width: 80px;">
+                                ${imgContent}
+                            </div>
+                        </div>
+                        <div class="col-md-5 mb-3 mb-md-0">
+                            <h5 class="fw-bold mb-1">${item.name || item.title || item.id}</h5>
+                            <span class="badge bg-light text-dark border">Quantity: ${item.quantity}</span>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0 text-md-end">
+                            <div class="fw-bold text-primary fs-5">$${price.toFixed(2)}</div>
+                            <small class="text-muted">Total: $${total.toFixed(2)}</small>
+                        </div>
+                        <div class="col-md-2 text-md-end">
+                            <button class="btn btn-outline-danger btn-sm rounded-circle p-2" onclick="removeItem('${item.id}')" title="Remove">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        updateSummary(subtotal);
+    }
+
+    function updateSummary(subtotal) {
+        const tax = subtotal * 0.08; // 8% tax estimate
+        const total = subtotal + tax;
+
+        document.getElementById('subtotal').textContent = '$' + subtotal.toFixed(2);
+        document.getElementById('tax').textContent = '$' + tax.toFixed(2);
+        document.getElementById('total').textContent = '$' + total.toFixed(2);
+    }
+
+    async function removeItem(productId) {
+        try {
+            const response = await fetch('/api/cart/remove', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: productId }),
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                showMessage('Item removed');
+                loadCart(); // Reload cart
+            } else {
+                showMessage('Failed to remove item', 'error');
+            }
+        } catch (error) {
+            showMessage('Network error', 'error');
+        }
+    }
+
+    async function clearCart() {
+        if(!confirm('Are you sure you want to empty your cart?')) return;
+        
+        try {
+            const response = await fetch('/api/cart/clear', {
+                method: 'POST',
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                showMessage('Cart cleared');
+                loadCart();
+            } else {
+                showMessage('Failed to clear cart', 'error');
+            }
+        } catch (error) {
+            showMessage('Network error', 'error');
+        }
+    }
+
+    async function checkout() {
+        const btn = document.getElementById('checkoutBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/api/checkout', {
+                method: 'POST',
+                credentials: 'include'
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                showMessage('Order placed successfully! Redirecting...');
+                setTimeout(() => window.location.href = '/orders', 1500);
+            } else {
+                showMessage(result.error || 'Checkout failed', 'error');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        } catch (error) {
+            showMessage('Network error during checkout', 'error');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+</script>
+{% endblock %}
