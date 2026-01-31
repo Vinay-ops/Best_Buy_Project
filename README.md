@@ -72,5 +72,20 @@ Ensure you have MySQL installed and running. The application will automatically 
 *   **Login/Register**: Create an account to manage your cart and orders.
 *   **Cart**: View added items and proceed to checkout.
 
+## 🚀 Deployment
+
+This application is ready to be deployed on platforms like **Render**, **Railway**, or **Heroku**.
+
+### Prerequisites
+1.  **Cloud Database**: You need a hosted MySQL database (e.g., via Railway, Aiven, or PlanetScale).
+2.  **Environment Variables**: Set the same variables from your `.env` file in your cloud provider's dashboard.
+
+### Deploy on Render (Example)
+1.  Push your code to GitHub.
+2.  Create a new **Web Service** on Render connected to your repo.
+3.  Set the **Build Command** to: `pip install -r requirements.txt`
+4.  Set the **Start Command** to: `gunicorn app:app`
+5.  Add your environment variables (`MYSQL_HOST`, `MYSQL_USER`, etc.) in the Render dashboard.
+
 ---
 *Built for simplicity and performance.*
