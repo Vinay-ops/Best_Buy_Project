@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_cors import CORS
+import os
 from app.routes import register_routes
 from app.database import init_database
 
