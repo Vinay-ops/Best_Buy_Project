@@ -9,7 +9,7 @@ def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
     CORS(app, supports_credentials=True, origins=["http://localhost:5000", "http://127.0.0.1:5000"])
     
-    app.secret_key = "your-secret-key-change-in-production"
+    app.secret_key = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
     app.config["SESSION_PERMANENT"] = False
     
     init_database()

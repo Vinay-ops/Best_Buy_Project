@@ -57,7 +57,7 @@ A powerful Flask-based e-commerce application that aggregates products from mult
 
 4.  **Run the Application**
     ```bash
-    python app.py
+    python wsgi.py
     ```
     The server will start at `http://localhost:5000`.
 
