@@ -2,7 +2,7 @@
 Main Entry Point for the Flask Application
 
 This is the file you run to start the server.
-Run it with: python wsgi.py
+Run it with: python app.py
 
 The server will start on http://localhost:5000
 """
