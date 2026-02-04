@@ -89,24 +89,25 @@
             card.className = `col-sm-6 col-lg-4 col-xl-3 animate-slide-in-up ${delayClass}`;
             
             // Handle missing data gracefully
-            const imgUrl = product.image || 'https://via.placeholder.com/300x300?text=No+Image';
+            const imgUrl = product.image || 'https://placehold.co/300x300?text=No+Image';
             const name = product.name || product.title || 'Unknown Product';
             const price = product.price !== undefined ? product.price : 'N/A';
             const source = product.source || 'Unknown';
             const productId = product.id || index; // Fallback ID
+            const safeId = String(productId).replace(/'/g, "\\'");
 
             card.innerHTML = `
                 <div class="product-card h-100 d-flex flex-column">
                     <div class="product-img-wrapper position-relative">
                         <span class="badge bg-dark position-absolute top-0 start-0 m-3 text-uppercase">${source}</span>
                         <img src="${imgUrl}" class="product-img" alt="${name}" 
-                             onerror="this.onerror=null; this.src='https://via.placeholder.com/300x300?text=Image+Not+Found';">
+                             onerror="this.onerror=null; this.src='https://placehold.co/300x300?text=Image+Not+Found';">
                     </div>
                     <div class="card-body d-flex flex-column flex-grow-1">
                         <h5 class="card-title" title="${name}">${name}</h5>
                         <div class="mt-auto pt-3 d-flex justify-content-between align-items-center">
-                            <span class="price-tag">$${price}</span>
-                            <button onclick="addToCart('${productId}')" class="btn btn-outline-primary rounded-circle p-2" title="Add to Cart">
+                            <span class="price-tag">₹${price}</span>
+                            <button onclick="addToCart('${safeId}')" class="btn btn-outline-primary rounded-circle p-2" title="Add to Cart">
                                 <i class="fas fa-cart-plus"></i>
                             </button>
                         </div>

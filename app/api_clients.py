@@ -1,103 +1,81 @@
-import requests
-from app.config import (
-    FAKESTORE_API_URL, DUMMYJSON_API_URL, FAKESHOP_API_URL,
-    SERPAPI_URL, SERPAPI_KEY, REQUEST_TIMEOUT, SOURCES
-)
+import requests, os, json, hashlib, time
+from app.config import FAKESTORE_API_URL, DUMMYJSON_API_URL, FAKESHOP_API_URL, SERPAPI_URL, SERPAPI_KEY, REQUEST_TIMEOUT, SOURCES
 
-# --- Helpers ---
+USD_TO_INR = 86.0
+CACHE_DIR, CACHE_DURATION = os.path.join(os.getcwd(), 'cache'), 86400  # 24h
 
-def get_json(url, params=None):
+def get_cache_path(key):
+    return os.path.join(CACHE_DIR, f"{hashlib.md5(key.encode()).hexdigest()}.json")
+
+def get_from_cache(key):
     try:
-        # Add a User-Agent to look like a real browser (fixes 403 Forbidden errors)
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        response = requests.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        print(f"⚠️ API error ({url}): {e}")
-        return None
-
-def normalize(product, source):
-    """Convert different API formats to our standard format"""
-    try:
-        if source == "fakestore":
-            return {
-                "id": str(product.get("id", "")),
-                "name": product.get("title", ""),
-                "price": float(product.get("price", 0)),
-                "category": product.get("category", ""),
-                "image": product.get("image", ""),
-                "source": SOURCES["fakestore"]
-            }
-        elif source == "dummyjson":
-            return {
-                "id": str(product.get("id", "")),
-                "name": product.get("title", ""),
-                "price": float(product.get("price", 0)),
-                "category": product.get("category", ""),
-                "image": product.get("thumbnail", ""),
-                "source": SOURCES["dummyjson"]
-            }
-        elif source == "fakeshop":
-            cat = product.get("category", {})
-            img = product.get("images", [])
-            return {
-                "id": str(product.get("id", "")),
-                "name": product.get("title", ""),
-                "price": float(product.get("price", 0)),
-                "category": cat.get("name", "") if isinstance(cat, dict) else str(cat),
-                "image": img[0] if isinstance(img, list) and img else "",
-                "source": SOURCES["fakeshop"]
-            }
-        elif source == "serpapi":
-            # Try to get pre-extracted price first, then parse string
-            price = product.get("extracted_price")
-            if price is None:
-                price_str = str(product.get("price", "0")).replace("$", "").replace(",", "").strip()
-                try: price = float(price_str)
-                except: price = 0.0
-            
-            return {
-                "id": str(product.get("product_id") or product.get("position") or ""),
-                "name": product.get("title", ""),
-                "price": float(price),
-                "category": "Google Shopping",
-                "image": product.get("thumbnail", ""),
-                "source": SOURCES["serpapi"]
-            }
-    except Exception: return None
+        if os.path.exists(path := get_cache_path(key)) and time.time() - os.path.getmtime(path) < CACHE_DURATION:
+            with open(path, 'r', encoding='utf-8') as f: return json.load(f)
+    except: pass
     return None
 
-# --- Fetch Products (Normalized) ---
+def save_to_cache(key, data):
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(get_cache_path(key), 'w', encoding='utf-8') as f: json.dump(data, f)
+    except: pass
 
-def fetch_fakestore_products():
-    data = get_json(FAKESTORE_API_URL)
-    return [n for p in data if (n := normalize(p, "fakestore"))] if data else []
+def get_json(url, params=None, ua=True):
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"} if ua else {}
+        resp = requests.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
+        return resp.json() if resp.status_code == 200 else None
+    except: return None
 
-def fetch_dummyjson_products():
-    data = get_json(DUMMYJSON_API_URL)
-    products = data.get("products", []) if data else []
-    return [n for p in products if (n := normalize(p, "dummyjson"))]
+def clean_image_url(url):
+    if not url or not isinstance(url, str) or "placeimg.com" in url or "api.escuelajs.co" in url or not url.startswith('http'):
+        return "https://placehold.co/300?text=No+Image"
+    return url.strip().replace('["', '').replace('"]', '').replace('"', '')
 
-def fetch_fakeshop_products():
-    data = get_json(FAKESHOP_API_URL)
-    return [n for p in data if (n := normalize(p, "fakeshop"))] if data else []
+def normalize(p, source):
+    try:
+        price, img, title = 0, "", p.get("title", "")
+        if source == "fakestore":
+            price, img = float(p.get("price", 0)), p.get("image", "")
+        elif source == "dummyjson":
+            price, img = float(p.get("price", 0)), p.get("thumbnail", "")
+        elif source == "fakeshop":
+            price = float(p.get("price", 0))
+            img = p.get("images", [""])[0] if isinstance(p.get("images"), list) else ""
+        elif source == "serpapi":
+            price = p.get("extracted_price") or float("".join(c for c in str(p.get("price", "0")) if c.isdigit() or c == '.') or 0)
+            img, title = p.get("thumbnail", ""), p.get("title", "Unknown")
+            
+        return {
+            "id": str(p.get("id") or p.get("product_id") or f"serp_{p.get('position', 'u')}"),
+            "name": title, "price": round(price * USD_TO_INR, 2),
+            "category": p.get("category", {}).get("name") if isinstance(p.get("category"), dict) else p.get("category", "General"),
+            "image": clean_image_url(img), "source": SOURCES.get(source, source)
+        }
+    except: return None
 
-# --- Search Products (Normalized) ---
+def fetch_products(url, source):
+    return [n for p in (get_json(url) or {}).get("products", get_json(url) or []) if (n := normalize(p, source))]
+
+fetch_fakestore_products = lambda: fetch_products(FAKESTORE_API_URL, "fakestore")
+fetch_dummyjson_products = lambda: fetch_products(DUMMYJSON_API_URL, "dummyjson")
+fetch_fakeshop_products = lambda: fetch_products(FAKESHOP_API_URL, "fakeshop")
 
 def search_serpapi_products(query):
     if not SERPAPI_KEY or not query: return []
-    params = {"engine": "google_shopping", "q": query, "api_key": SERPAPI_KEY}
-    data = get_json(SERPAPI_URL, params)
-    return [n for p in data.get("shopping_results", []) if (n := normalize(p, "serpapi"))] if data else []
+    if data := get_from_cache(key := f"serpapi_{query}"): return data
+    
+    data = get_json(SERPAPI_URL, {"engine": "google_shopping", "q": query, "api_key": SERPAPI_KEY}, False)
+    results = [n for p in (data.get("shopping_results", []) if data else []) if (n := normalize(p, "serpapi"))]
+    
+    if results: save_to_cache(key, results)
+    return results
 
-def search_dummyjson_products(query):
-    url = f"{DUMMYJSON_API_URL}/search"
-    data = get_json(url, {"q": query})
-    return [n for p in data.get("products", []) if (n := normalize(p, "dummyjson"))] if data else []
+def fetch_featured_products():
+    return search_serpapi_products("best selling laptops 2025")
 
-def search_fakeshop_products(query):
-    data = get_json(FAKESHOP_API_URL, {"title": query})
-    return [n for p in data if (n := normalize(p, "fakeshop"))] if data else []
+def search_dummyjson_products(q):
+    return [n for p in (get_json(f"{DUMMYJSON_API_URL}/search", {"q": q}) or {}).get("products", []) if (n := normalize(p, "dummyjson"))]
+
+def search_fakeshop_products(q):
+    return [n for p in (get_json(FAKESHOP_API_URL, {"title": q}) or []) if (n := normalize(p, "fakeshop"))]
