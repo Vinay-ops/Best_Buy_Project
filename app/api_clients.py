@@ -55,7 +55,9 @@ def normalize(p, source):
     except: return None
 
 def fetch_products(url, source):
-    return [n for p in (get_json(url) or {}).get("products", get_json(url) or []) if (n := normalize(p, source))]
+    data = get_json(url)
+    items = data.get("products", []) if isinstance(data, dict) else (data or [])
+    return [n for p in items if (n := normalize(p, source))]
 
 fetch_fakestore_products = lambda: fetch_products(FAKESTORE_API_URL, "fakestore")
 fetch_dummyjson_products = lambda: fetch_products(DUMMYJSON_API_URL, "dummyjson")
