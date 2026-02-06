@@ -1,9 +1,9 @@
 from flask import jsonify, request, render_template, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.api_clients import (
-    fetch_fakestore_products, fetch_dummyjson_products, fetch_fakeshop_products,
-    search_serpapi_products, search_dummyjson_products, search_fakeshop_products,
-    fetch_featured_products
+    fetch_featured_products, fetch_amazon_products, fetch_bestbuy_products, fetch_walmart_products,
+    fetch_ebay_products, fetch_target_products, fetch_newegg_products,
+    search_serpapi_products
 )
 from app.database import create_user, get_user_by_username, create_order, get_user_orders
 
@@ -52,12 +52,30 @@ def register_routes(app):
     # --- Products ---
     @app.route('/api/products')
     def get_products():
-        return jsonify({"products": fetch_featured_products() + fetch_fakestore_products() + fetch_dummyjson_products() + fetch_fakeshop_products()})
+        # Combine featured results + specific store results
+        all_products = (
+            fetch_featured_products() + 
+            fetch_amazon_products() + 
+            fetch_bestbuy_products() + 
+            fetch_walmart_products() +
+            fetch_ebay_products() +
+            fetch_target_products() +
+            fetch_newegg_products()
+        )
+        return jsonify({"products": all_products})
 
     @app.route('/api/products/<source>')
     def get_products_by_source(source):
         src = source.lower().strip()
-        funcs = {"fakestore": fetch_fakestore_products, "dummyjson": fetch_dummyjson_products, "fakeshop": fetch_fakeshop_products}
+        funcs = {
+            "amazon": fetch_amazon_products,
+            "bestbuy": fetch_bestbuy_products,
+            "walmart": fetch_walmart_products,
+            "ebay": fetch_ebay_products,
+            "target": fetch_target_products,
+            "newegg": fetch_newegg_products,
+            "serpapi": fetch_featured_products
+        }
         if src not in funcs: return jsonify({"error": "Unknown source"}), 400
         p = funcs[src]()
         return jsonify({"source": src, "total": len(p), "products": p})
@@ -65,7 +83,8 @@ def register_routes(app):
     @app.route('/api/search')
     def search_products():
         if not (q := request.args.get('q', '').strip()): return jsonify({"error": "Missing query"}), 400
-        res = search_serpapi_products(q) + search_dummyjson_products(q) + search_fakeshop_products(q)
+        # Search everywhere using SerpAPI
+        res = search_serpapi_products(q, "serpapi") 
         return jsonify({"query": q, "total": len(res), "products": sorted(res, key=lambda x: x.get('price', float('inf')))})
 
     @app.route('/api/debug/serpapi')

@@ -1,5 +1,5 @@
 import requests, os, json, hashlib, time
-from app.config import FAKESTORE_API_URL, DUMMYJSON_API_URL, FAKESHOP_API_URL, SERPAPI_URL, SERPAPI_KEY, REQUEST_TIMEOUT, SOURCES
+from app.config import SERPAPI_URL, SERPAPI_KEY, REQUEST_TIMEOUT, SOURCES
 
 USD_TO_INR = 86.0
 CACHE_DIR, CACHE_DURATION = os.path.join(os.getcwd(), 'cache'), 86400  # 24h
@@ -28,56 +28,52 @@ def get_json(url, params=None, ua=True):
     except: return None
 
 def clean_image_url(url):
-    if not url or not isinstance(url, str) or "placeimg.com" in url or "api.escuelajs.co" in url or not url.startswith('http'):
+    if not url or not isinstance(url, str) or not url.startswith('http'):
         return "https://placehold.co/300?text=No+Image"
     return url.strip().replace('["', '').replace('"]', '').replace('"', '')
 
 def normalize(p, source):
     try:
-        price, img, title = 0, "", p.get("title", "")
-        if source == "fakestore":
-            price, img = float(p.get("price", 0)), p.get("image", "")
-        elif source == "dummyjson":
-            price, img = float(p.get("price", 0)), p.get("thumbnail", "")
-        elif source == "fakeshop":
-            price = float(p.get("price", 0))
-            img = p.get("images", [""])[0] if isinstance(p.get("images"), list) else ""
-        elif source == "serpapi":
-            price = p.get("extracted_price") or float("".join(c for c in str(p.get("price", "0")) if c.isdigit() or c == '.') or 0)
-            img, title = p.get("thumbnail", ""), p.get("title", "Unknown")
-            
+        price = p.get("extracted_price") or float("".join(c for c in str(p.get("price", "0")) if c.isdigit() or c == '.') or 0)
+        img, title = p.get("thumbnail", ""), p.get("title", "Unknown")
+        
         return {
-            "id": str(p.get("id") or p.get("product_id") or f"serp_{p.get('position', 'u')}"),
-            "name": title, "price": round(price * USD_TO_INR, 2),
-            "category": p.get("category", {}).get("name") if isinstance(p.get("category"), dict) else p.get("category", "General"),
-            "image": clean_image_url(img), "source": SOURCES.get(source, source)
+            "id": str(p.get("product_id") or f"serp_{p.get('position', 'u')}"),
+            "name": title, 
+            "price": round(price * USD_TO_INR, 2),
+            "category": "General",
+            "image": clean_image_url(img), 
+            "source": SOURCES.get(source, source)
         }
     except: return None
 
-def fetch_products(url, source):
-    data = get_json(url)
-    items = data.get("products", []) if isinstance(data, dict) else (data or [])
-    return [n for p in items if (n := normalize(p, source))]
-
-fetch_fakestore_products = lambda: fetch_products(FAKESTORE_API_URL, "fakestore")
-fetch_dummyjson_products = lambda: fetch_products(DUMMYJSON_API_URL, "dummyjson")
-fetch_fakeshop_products = lambda: fetch_products(FAKESHOP_API_URL, "fakeshop")
-
-def search_serpapi_products(query):
+def search_serpapi_products(query, source_label="serpapi"):
     if not SERPAPI_KEY or not query: return []
-    if data := get_from_cache(key := f"serpapi_{query}"): return data
+    # Cache key includes query and source to separate "laptop amazon" from "laptop bestbuy"
+    if data := get_from_cache(key := f"{source_label}_{query}"): return data
     
-    data = get_json(SERPAPI_URL, {"engine": "google_shopping", "q": query, "api_key": SERPAPI_KEY}, False)
-    results = [n for p in (data.get("shopping_results", []) if data else []) if (n := normalize(p, "serpapi"))]
+    # Add site: filter if looking for specific store, unless it's a general search
+    sites = {
+        "amazon": "amazon.com", "bestbuy": "bestbuy.com", "walmart": "walmart.com",
+        "ebay": "ebay.com", "target": "target.com", "newegg": "newegg.com"
+    }
+    search_q = f"{query} site:{sites[source_label]}" if source_label in sites else query
+    
+    data = get_json(SERPAPI_URL, {"engine": "google_shopping", "q": search_q, "api_key": SERPAPI_KEY}, False)
+    # Force the source label on the results
+    results = [n for p in (data.get("shopping_results", []) if data else []) if (n := normalize(p, source_label))]
     
     if results: save_to_cache(key, results)
     return results
 
+# Store-specific fetchers (using SerpAPI under the hood)
+fetch_amazon_products = lambda: search_serpapi_products("laptops", "amazon")
+fetch_bestbuy_products = lambda: search_serpapi_products("laptops", "bestbuy")
+fetch_walmart_products = lambda: search_serpapi_products("laptops", "walmart")
+fetch_ebay_products = lambda: search_serpapi_products("laptops", "ebay")
+fetch_target_products = lambda: search_serpapi_products("laptops", "target")
+fetch_newegg_products = lambda: search_serpapi_products("laptops", "newegg")
+
+# Default "featured" products (General Google Shopping)
 def fetch_featured_products():
-    return search_serpapi_products("best selling laptops 2025")
-
-def search_dummyjson_products(q):
-    return [n for p in (get_json(f"{DUMMYJSON_API_URL}/search", {"q": q}) or {}).get("products", []) if (n := normalize(p, "dummyjson"))]
-
-def search_fakeshop_products(q):
-    return [n for p in (get_json(FAKESHOP_API_URL, {"title": q}) or []) if (n := normalize(p, "fakeshop"))]
+    return search_serpapi_products("best selling laptops 2025", "serpapi")
