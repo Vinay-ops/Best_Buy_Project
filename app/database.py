@@ -166,16 +166,16 @@ def get_user_orders(user_id):
         oid = row['id']
         if oid not in orders:
             orders[oid] = {
-                'id': oid,
-                'total': float(row['total_amount']),
-                'date': row['created_at'],
+                'order_id': oid,
+                'total_amount': float(row['total_amount']),
+                'created_at': row['created_at'],
                 'items': []
             }
         orders[oid]['items'].append({
-            'title': row['product_title'],
+            'product_title': row['product_title'],
             'price': float(row['price']),
-            'qty': row['quantity'],
-            'pid': row['product_id']
+            'quantity': row['quantity'],
+            'product_id': row['product_id']
         })
     
     return list(orders.values())
