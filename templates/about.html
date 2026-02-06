@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}About Us - Best Buy Finder{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="text-center mb-5 animate-fade-in">
+        <h1 class="fw-bold display-5 mb-3">Meet Our Team</h1>
+        <p class="lead text-muted">The minds behind Best Buy Finder</p>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+        <!-- Team Member 1 -->
+        <div class="col-md-4 col-lg-3 animate-slide-in-up">
+            <div class="card border-0 shadow-sm rounded-4 text-center h-100 p-4 hover-card">
+                <div class="mb-4 mx-auto bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 120px; height: 120px;">
+                    <i class="fas fa-user-circle fa-4x text-primary"></i>
+                </div>
+                <h4 class="fw-bold mb-1">Srushti Mohite</h4>
+                <p class="text-primary fw-medium mb-3">Team Member</p>
+                <p class="text-muted small">Contributed to project development and design.</p>
+            </div>
+        </div>
+
+        <!-- Team Member 2 -->
+        <div class="col-md-4 col-lg-3 animate-slide-in-up" style="animation-delay: 0.1s;">
+            <div class="card border-0 shadow-sm rounded-4 text-center h-100 p-4 hover-card">
+                <div class="mb-4 mx-auto bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 120px; height: 120px;">
+                    <i class="fas fa-user-circle fa-4x text-primary"></i>
+                </div>
+                <h4 class="fw-bold mb-1">Shubham Baikar</h4>
+                <p class="text-primary fw-medium mb-3">Team Member</p>
+                <p class="text-muted small">Contributed to project development and design.</p>
+            </div>
+        </div>
+
+        <!-- Team Member 3 -->
+        <div class="col-md-4 col-lg-3 animate-slide-in-up" style="animation-delay: 0.2s;">
+            <div class="card border-0 shadow-sm rounded-4 text-center h-100 p-4 hover-card">
+                <div class="mb-4 mx-auto bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 120px; height: 120px;">
+                    <i class="fas fa-user-circle fa-4x text-primary"></i>
+                </div>
+                <h4 class="fw-bold mb-1">Vinay Bhogal</h4>
+                <p class="text-primary fw-medium mb-3">Team Member</p>
+                <p class="text-muted small">Contributed to project development and design.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.hover-card {
+    transition: transform 0.3s ease;
+}
+.hover-card:hover {
+    transform: translateY(-10px);
+}
+</style>
+{% endblock %}

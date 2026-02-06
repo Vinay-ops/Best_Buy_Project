@@ -1,2 +1,20 @@
-# Project exclude paths
-/.venv/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Environment Variables
+.env
+
+# IDEs
+.idea/
+.vscode/
+
+# Project specific
+cache/
+*.log

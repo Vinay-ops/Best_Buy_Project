@@ -49,6 +49,12 @@
                         <i class="fas fa-magic me-2"></i>Optimize Cart (Find Cheaper)
                     </button>
                     <div id="optimizationResult" class="alert alert-success d-none mb-3"></div>
+                    
+                    <!-- Suggestions Section -->
+                    <div id="suggestionsSection" class="d-none animate-fade-in">
+                        <h6 class="fw-bold text-muted mb-2">You might also like:</h6>
+                        <div id="suggestionsList" class="d-flex flex-column gap-2 mb-3"></div>
+                    </div>
 
                     <button class="btn btn-outline-danger w-100 rounded-pill" onclick="clearCart()">
                         <i class="fas fa-trash-alt me-2"></i>Clear Cart
@@ -208,10 +214,13 @@
     async function optimizeCart() {
         const btn = document.getElementById('optimizeBtn');
         const resultDiv = document.getElementById('optimizationResult');
+        const suggSection = document.getElementById('suggestionsSection');
+        const suggList = document.getElementById('suggestionsList');
         
         btn.disabled = true;
         btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div> Searching...';
         resultDiv.classList.add('d-none');
+        if (suggSection) suggSection.classList.add('d-none');
         
         try {
             const response = await fetch('/api/cart/optimize');
@@ -225,14 +234,71 @@
                     Optimized Total: ₹${data.new_total}<br>
                     <span class="text-danger fw-bold">You Save: ₹${data.savings}</span>
                 `;
+
+                // Handle Suggestions
+                if (data.suggestions && data.suggestions.length > 0 && suggSection && suggList) {
+                    suggList.innerHTML = '';
+                    data.suggestions.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'd-flex align-items-center bg-light p-2 rounded-3 border';
+                        // Clean strings for JS
+                        const safeId = String(item.id).replace(/'/g, "\\'");
+                        const safeTitle = (item.name || item.title || 'Unknown').replace(/'/g, "\\'");
+                        
+                        div.innerHTML = `
+                            <img src="${item.image || ''}" alt="img" class="rounded me-2" style="width: 40px; height: 40px; object-fit: contain;">
+                            <div class="flex-grow-1 lh-1">
+                                <small class="fw-bold d-block text-truncate" style="max-width: 150px;">${item.name || item.title}</small>
+                                <small class="text-success fw-bold">${item.price}</small>
+                            </div>
+                            <button class="btn btn-sm btn-primary-custom rounded-circle" 
+                                    onclick="addSuggestion('${safeId}', '${safeTitle}', '${item.price}')" title="Add">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        `;
+                        suggList.appendChild(div);
+                    });
+                    suggSection.classList.remove('d-none');
+                }
+
             } else {
                 showMessage(data.error || 'Optimization failed', 'error');
             }
         } catch (error) {
+            console.error(error);
             showMessage('Network error', 'error');
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-magic me-2"></i>Optimize Cart (Find Cheaper)';
+        }
+    }
+
+    async function addSuggestion(id, title, price) {
+        try {
+            // Clean price string if needed
+            let cleanPrice = parseFloat(String(price).replace(/[^0-9.]/g, ''));
+            if (isNaN(cleanPrice)) cleanPrice = 0;
+
+            const response = await fetch('/api/cart/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    id: id,
+                    title: title,
+                    price: cleanPrice,
+                    quantity: 1 
+                }),
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                showMessage('Added to cart!');
+                loadCart(); // Refresh to show new item
+            } else {
+                showMessage('Failed to add item', 'error');
+            }
+        } catch (error) {
+            showMessage('Error adding item', 'error');
         }
     }
 

@@ -169,7 +169,7 @@ def search_serpapi_products(query, source_label="serpapi"):
 # ---------------------------------------------------------
 
 def fetch_featured_products():
-    return search_serpapi_products("trending products 2025", "serpapi")
+    return search_serpapi_products("trending products 2026", "serpapi")
 
 def fetch_amazon_products():
     return search_serpapi_products("trending electronics", "amazon")

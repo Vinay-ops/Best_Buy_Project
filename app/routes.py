@@ -51,6 +51,10 @@ def register_routes(app):
     def orders_page(): 
         return render_template('orders.html')
 
+    @app.route('/about')
+    def about_page(): 
+        return render_template('about.html')
+
     # ---------------------------
     # User Authentication API
     # ---------------------------
@@ -262,7 +266,7 @@ def register_routes(app):
 
     @app.route('/api/cart/optimize')
     def optimize_cart():
-        """Simulates finding a cheaper total price."""
+        """Simulates finding a cheaper total price AND suggests related products."""
         cart = session.get("cart", [])
         if not cart:
             return jsonify({"error": "Cart is empty"}), 400
@@ -271,12 +275,43 @@ def register_routes(app):
         original_total = sum(item["price"] * item["quantity"] for item in cart)
         discount_factor = 0.85 + (random.random() * 0.1) # 0.85 to 0.95
         new_total = round(original_total * discount_factor, 2)
+
+        # --- Generate Suggestions ---
+        suggestions = []
+        try:
+            # Select up to 3 items from the cart to base suggestions on
+            target_items = cart[:3]
+            
+            def get_suggestions_for_item(item):
+                try:
+                    title = item.get("title", "")
+                    # Use the first 3 words to get a broad category match
+                    search_term = " ".join(title.split()[:3])
+                    results = search_serpapi_products(search_term, "serpapi")
+                    # Return top 2 distinct items
+                    return [p for p in results if p.get("id") != item.get("id")][:2]
+                except:
+                    return []
+
+            # Run searches in parallel
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                futures = [executor.submit(get_suggestions_for_item, item) for item in target_items]
+                for future in concurrent.futures.as_completed(futures):
+                    suggestions.extend(future.result())
+            
+            # Shuffle and limit to 6 items to keep it fresh
+            random.shuffle(suggestions)
+            suggestions = suggestions[:6]
+            
+        except Exception as e:
+            print(f"Suggestion error: {e}")
         
         return jsonify({
             "original_total": original_total,
             "new_total": new_total,
             "savings": round(original_total - new_total, 2),
-            "message": "We found a better deal by combining sellers!"
+            "message": "We found a better deal by combining sellers!",
+            "suggestions": suggestions
         })
 
     # ---------------------------
