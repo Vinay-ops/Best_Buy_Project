@@ -4,17 +4,17 @@ Configuration Settings
 import os
 from dotenv import load_dotenv
 
-# Load .env file
-load_dotenv(os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), '.env'))
+# 1. Load environment variables from .env file
+# This finds the project root directory
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
-# API URLs (SerpAPI handles all real store searches)
+# 2. API Configuration
 SERPAPI_URL = "https://serpapi.com/search"
-
-# Secrets
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
+REQUEST_TIMEOUT = 10  # Seconds to wait for API response
 
-# Settings
-REQUEST_TIMEOUT = 10
+# 3. Supported Stores (Source ID -> Display Name)
 SOURCES = {
     "amazon": "Amazon", 
     "bestbuy": "Best Buy", 
@@ -22,10 +22,12 @@ SOURCES = {
     "ebay": "eBay",
     "target": "Target",
     "newegg": "Newegg",
+    "macys": "Macy's",
+    "nordstrom": "Nordstrom",
     "serpapi": "Google Shopping"
 }
 
-# Database
+# 4. Database Configuration
 MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER = os.getenv("MYSQL_USER", "root")

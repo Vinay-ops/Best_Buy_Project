@@ -1,138 +1,367 @@
 from flask import jsonify, request, render_template, session
 from werkzeug.security import generate_password_hash, check_password_hash
+import concurrent.futures
+import random
+import datetime
+
+# Import API fetchers
 from app.api_clients import (
     fetch_featured_products, fetch_amazon_products, fetch_bestbuy_products, fetch_walmart_products,
     fetch_ebay_products, fetch_target_products, fetch_newegg_products,
+    fetch_macys_products, fetch_nordstrom_products,
+    fetch_sephora_products, fetch_barnes_products, fetch_dicks_products,
+    fetch_homedepot_products, fetch_chewy_products, fetch_guitarcenter_products, fetch_staples_products,
     search_serpapi_products
 )
-from app.database import create_user, get_user_by_username, create_order, get_user_orders
+
+# Import Database functions
+from app.database import (
+    create_user, get_user_by_username, create_order, get_user_orders, add_price_alert
+)
 
 def register_routes(app):
-    # --- Frontend ---
-    @app.route('/')
-    def index(): return render_template('index.html')
-    @app.route('/products')
-    def products_page(): return render_template('products.html')
-    @app.route('/login')
-    def login_page(): return render_template('login.html')
-    @app.route('/register')
-    def register_page(): return render_template('register.html')
-    @app.route('/cart')
-    def cart_page(): return render_template('cart.html')
-    @app.route('/orders')
-    def orders_page(): return render_template('orders.html')
+    """
+    Register all the website routes (URLs) for the app.
+    """
 
-    # --- Auth ---
+    # ---------------------------
+    # Frontend Pages (HTML)
+    # ---------------------------
+    @app.route('/')
+    def index(): 
+        return render_template('index.html')
+
+    @app.route('/products')
+    def products_page(): 
+        return render_template('products.html')
+
+    @app.route('/login')
+    def login_page(): 
+        return render_template('login.html')
+
+    @app.route('/register')
+    def register_page(): 
+        return render_template('register.html')
+
+    @app.route('/cart')
+    def cart_page(): 
+        return render_template('cart.html')
+
+    @app.route('/orders')
+    def orders_page(): 
+        return render_template('orders.html')
+
+    # ---------------------------
+    # User Authentication API
+    # ---------------------------
     @app.route('/api/register', methods=['POST'])
     def register():
         data = request.get_json() or {}
-        user, pwd = data.get("username", "").strip(), data.get("password", "")
-        if not user or len(user) < 3 or len(pwd) < 6: return jsonify({"error": "Invalid input"}), 400
-        if get_user_by_username(user): return jsonify({"error": "User exists"}), 400
-        return (jsonify({"message": "Registered"}), 201) if create_user(user, generate_password_hash(pwd)) else (jsonify({"error": "Failed"}), 500)
+        username = data.get("username", "").strip()
+        password = data.get("password", "")
+
+        # Validation
+        if not username or len(username) < 3:
+            return jsonify({"error": "Username must be at least 3 chars"}), 400
+        if not password or len(password) < 6:
+            return jsonify({"error": "Password must be at least 6 chars"}), 400
+        
+        # Check if user exists
+        if get_user_by_username(username):
+            return jsonify({"error": "User already exists"}), 400
+
+        # Create user
+        hashed_password = generate_password_hash(password)
+        if create_user(username, hashed_password):
+            return jsonify({"message": "Registration successful"}), 201
+        else:
+            return jsonify({"error": "Registration failed"}), 500
 
     @app.route('/api/login', methods=['POST'])
     def login():
         data = request.get_json() or {}
-        user = get_user_by_username(data.get("username", "").strip())
-        if user and check_password_hash(user["password_hash"], data.get("password", "")):
-            session.update({"user_id": user["id"], "username": user["username"], "logged_in": True})
-            return jsonify({"message": "Success", "user": user})
-        return jsonify({"error": "Invalid credentials"}), 401
+        username = data.get("username", "").strip()
+        password = data.get("password", "")
+
+        user = get_user_by_username(username)
+        
+        if user and check_password_hash(user["password_hash"], password):
+            # Save user info in session (cookies)
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            session["logged_in"] = True
+            return jsonify({"message": "Login successful", "user": user})
+        
+        return jsonify({"error": "Invalid username or password"}), 401
 
     @app.route('/api/logout', methods=['POST'])
     def logout():
         session.clear()
-        return jsonify({"message": "Logged out"})
+        return jsonify({"message": "Logged out successfully"})
 
     @app.route('/api/auth/status')
     def auth_status():
-        return jsonify({"logged_in": session.get("logged_in", False), "user": {"username": session.get("username")}})
+        """Check if user is currently logged in."""
+        return jsonify({
+            "logged_in": session.get("logged_in", False), 
+            "user": {"username": session.get("username")}
+        })
 
-    # --- Products ---
+    # ---------------------------
+    # Product API
+    # ---------------------------
     @app.route('/api/products')
     def get_products():
-        # Combine featured results + specific store results
-        all_products = (
-            fetch_featured_products() + 
-            fetch_amazon_products() + 
-            fetch_bestbuy_products() + 
-            fetch_walmart_products() +
-            fetch_ebay_products() +
-            fetch_target_products() +
-            fetch_newegg_products()
-        )
+        """
+        Fetch products from ALL stores simultaneously using parallel processing.
+        This prevents the page from loading slowly.
+        """
+        # List of functions to call
+        fetch_functions = [
+            fetch_featured_products, 
+            fetch_macys_products, 
+            fetch_nordstrom_products,
+            fetch_sephora_products,
+            fetch_barnes_products,
+            fetch_dicks_products,
+            fetch_homedepot_products,
+            fetch_chewy_products,
+            fetch_guitarcenter_products,
+            fetch_staples_products
+        ]
+        
+        all_products = []
+        
+        # 'ThreadPoolExecutor' runs these functions at the same time (parallel)
+        # instead of one by one. This is much faster!
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            # Start all tasks
+            futures = [executor.submit(func) for func in fetch_functions]
+            
+            # Collect results as they finish
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    products = future.result()
+                    if products:
+                        all_products.extend(products)
+                except Exception as e:
+                    print(f"Error fetching data: {e}")
+                
         return jsonify({"products": all_products})
 
     @app.route('/api/products/<source>')
     def get_products_by_source(source):
         src = source.lower().strip()
-        funcs = {
+        
+        # Map source names to functions
+        source_map = {
             "amazon": fetch_amazon_products,
             "bestbuy": fetch_bestbuy_products,
             "walmart": fetch_walmart_products,
             "ebay": fetch_ebay_products,
             "target": fetch_target_products,
             "newegg": fetch_newegg_products,
+            "macys": fetch_macys_products,
+            "nordstrom": fetch_nordstrom_products,
+            "sephora": fetch_sephora_products,
+            "barnesandnoble": fetch_barnes_products,
+            "dicks": fetch_dicks_products,
+            "homedepot": fetch_homedepot_products,
+            "chewy": fetch_chewy_products,
+            "guitarcenter": fetch_guitarcenter_products,
+            "staples": fetch_staples_products,
             "serpapi": fetch_featured_products
         }
-        if src not in funcs: return jsonify({"error": "Unknown source"}), 400
-        p = funcs[src]()
-        return jsonify({"source": src, "total": len(p), "products": p})
+        
+        if src not in source_map:
+            return jsonify({"error": "Unknown source"}), 400
+            
+        products = source_map[src]()
+        return jsonify({"source": src, "total": len(products), "products": products})
 
     @app.route('/api/search')
     def search_products():
-        if not (q := request.args.get('q', '').strip()): return jsonify({"error": "Missing query"}), 400
+        query = request.args.get('q', '').strip()
+        if not query:
+            return jsonify({"error": "Missing search query"}), 400
+            
         # Search everywhere using SerpAPI
-        res = search_serpapi_products(q, "serpapi") 
-        return jsonify({"query": q, "total": len(res), "products": sorted(res, key=lambda x: x.get('price', float('inf')))})
+        results = search_serpapi_products(query, "serpapi") 
+        
+        # Sort by price (lowest first)
+        sorted_results = sorted(results, key=lambda x: x.get('price', float('inf')))
+        
+        return jsonify({"query": query, "total": len(results), "products": sorted_results})
 
     @app.route('/api/debug/serpapi')
     def debug_serpapi():
         import os
-        return jsonify({"key_loaded": bool(os.getenv("SERPAPI_KEY")), "test_result_count": len(search_serpapi_products("iphone"))})
+        key_exists = bool(os.getenv("SERPAPI_KEY"))
+        return jsonify({
+            "key_loaded": key_exists, 
+            "test_result_count": len(search_serpapi_products("iphone")) if key_exists else 0
+        })
 
-    # --- Cart ---
+    # ---------------------------
+    # Cart API
+    # ---------------------------
     @app.route('/api/cart/add', methods=['POST'])
     def add_to_cart():
-        d = request.get_json() or {}
-        if not d.get("id") or not d.get("price"): return jsonify({"error": "Invalid data"}), 400
+        data = request.get_json() or {}
+        product_id = str(data.get("id"))
+        price = data.get("price")
         
-        cart, pid = session.get("cart", []), str(d["id"])
+        if not product_id or not price:
+            return jsonify({"error": "Invalid product data"}), 400
+        
+        cart = session.get("cart", [])
+        
+        # Check if item already in cart
+        found = False
         for item in cart:
-            if item["id"] == pid: item["quantity"] += d.get("quantity", 1); break
-        else:
-            cart.append({"id": pid, "title": d.get("title"), "price": float(d["price"]), "quantity": int(d.get("quantity", 1))})
+            if item["id"] == product_id:
+                item["quantity"] += data.get("quantity", 1)
+                found = True
+                break
+        
+        if not found:
+            cart.append({
+                "id": product_id, 
+                "title": data.get("title"), 
+                "price": float(price), 
+                "quantity": int(data.get("quantity", 1))
+            })
         
         session["cart"] = cart
-        return jsonify({"message": "Added", "cart": cart})
+        return jsonify({"message": "Added to cart", "cart": cart})
 
     @app.route('/api/cart')
     def get_cart():
-        c = session.get("cart", [])
-        return jsonify({"cart": c, "total_amount": round(sum(i["price"] * i["quantity"] for i in c), 2)})
+        cart = session.get("cart", [])
+        total = sum(item["price"] * item["quantity"] for item in cart)
+        return jsonify({"cart": cart, "total_amount": round(total, 2)})
 
     @app.route('/api/cart/remove', methods=['POST'])
     def remove_from_cart():
-        if not (pid := request.get_json().get("id")): return jsonify({"error": "Missing ID"}), 400
-        session["cart"] = [i for i in session.get("cart", []) if i["id"] != str(pid)]
-        return jsonify({"message": "Removed", "cart": session["cart"]})
+        data = request.get_json() or {}
+        product_id = str(data.get("id"))
+        
+        if not product_id:
+            return jsonify({"error": "Missing product ID"}), 400
+            
+        # Keep items that don't match the ID
+        cart = session.get("cart", [])
+        session["cart"] = [item for item in cart if item["id"] != product_id]
+        
+        return jsonify({"message": "Removed from cart", "cart": session["cart"]})
 
     @app.route('/api/cart/clear', methods=['POST'])
     def clear_cart():
         session["cart"] = []
-        return jsonify({"message": "Cleared"})
+        return jsonify({"message": "Cart cleared"})
 
-    # --- Orders ---
+    @app.route('/api/cart/optimize')
+    def optimize_cart():
+        """Simulates finding a cheaper total price."""
+        cart = session.get("cart", [])
+        if not cart:
+            return jsonify({"error": "Cart is empty"}), 400
+        
+        # Simulate a 5-15% discount
+        original_total = sum(item["price"] * item["quantity"] for item in cart)
+        discount_factor = 0.85 + (random.random() * 0.1) # 0.85 to 0.95
+        new_total = round(original_total * discount_factor, 2)
+        
+        return jsonify({
+            "original_total": original_total,
+            "new_total": new_total,
+            "savings": round(original_total - new_total, 2),
+            "message": "We found a better deal by combining sellers!"
+        })
+
+    # ---------------------------
+    # Order & Checkout API
+    # ---------------------------
     @app.route('/api/checkout', methods=['POST'])
     def checkout():
-        if not session.get("logged_in"): return jsonify({"error": "Login required"}), 401
-        if not (cart := session.get("cart", [])): return jsonify({"error": "Cart empty"}), 400
-        if oid := create_order(session["user_id"], cart):
-            session["cart"] = []
-            return jsonify({"message": "Order placed", "order_id": oid}), 201
-        return jsonify({"error": "Order failed"}), 500
+        if not session.get("logged_in"):
+            return jsonify({"error": "Please login first"}), 401
+            
+        cart = session.get("cart", [])
+        if not cart:
+            return jsonify({"error": "Cart is empty"}), 400
+            
+        user_id = session["user_id"]
+        total_amount = sum(item["price"] * item["quantity"] for item in cart)
+        
+        order_id = create_order(user_id, total_amount, cart)
+        if order_id:
+            session["cart"] = [] # Clear cart
+            return jsonify({"message": "Order placed successfully!", "order_id": order_id}), 201
+        
+        return jsonify({"error": "Failed to place order"}), 500
 
     @app.route('/api/orders')
     def get_orders():
-        return (jsonify({"orders": get_user_orders(session["user_id"])}), 200) if session.get("logged_in") else (jsonify({"error": "Login required"}), 401)
+        if not session.get("logged_in"):
+            return jsonify({"error": "Please login first"}), 401
+            
+        orders = get_user_orders(session["user_id"])
+        return jsonify({"orders": orders}), 200
+
+    # ---------------------------
+    # Extra Features (Price History, Alerts, AI)
+    # ---------------------------
+    @app.route('/api/price-history', methods=['POST'])
+    def get_price_history():
+        """Returns generated price history for the graph demo."""
+        data = request.get_json() or {}
+        try:
+            current_price = float(data.get('price', 100))
+        except:
+            current_price = 100.0
+        
+        # Generate 30 days of fake history data
+        history = []
+        today = datetime.date.today()
+        
+        for i in range(30):
+            date = (today - datetime.timedelta(days=30-i)).isoformat()
+            # Fluctuate price by +/- 10%
+            fluctuation = current_price * (1 + (random.random() * 0.2 - 0.1))
+            history.append({"date": date, "price": round(fluctuation, 2)})
+            
+        return jsonify({"history": history, "current_price": current_price})
+
+    @app.route('/api/set-alert', methods=['POST'])
+    def set_price_alert():
+        if not session.get("logged_in"):
+            return jsonify({"error": "Please login first"}), 401
+            
+        data = request.get_json() or {}
+        success = add_price_alert(
+            session["user_id"], 
+            data.get("title"), 
+            float(data.get("target_price", 0)), 
+            data.get("email")
+        )
+        
+        if success:
+            return jsonify({"message": "Price alert set!"})
+        else:
+            return jsonify({"error": "Failed to set alert"}), 500
+
+    @app.route('/api/ai-summary', methods=['POST'])
+    def get_ai_summary():
+        """Simulates an AI review summary."""
+        data = request.get_json() or {}
+        title = data.get("title", "Product")
+        
+        # Placeholder summary logic
+        summaries = [
+            f"Buyers are raving about the {title}. Most users appreciate the build quality and value for money.",
+            f"The {title} is a solid choice. Pros: excellent performance. Cons: shipping was slow for some.",
+            f"Highly recommended! The features on this {title} beat the competition at this price point."
+        ]
+        
+        return jsonify({"summary": random.choice(summaries)})

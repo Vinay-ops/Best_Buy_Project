@@ -44,6 +44,12 @@
                     <button id="checkoutBtn" class="btn btn-primary-custom w-100 btn-lg mb-3" disabled onclick="checkout()">
                         Proceed to Checkout
                     </button>
+                    <!-- New: Optimize Cart Button -->
+                    <button id="optimizeBtn" class="btn btn-warning w-100 btn-lg mb-3 fw-bold text-dark" onclick="optimizeCart()">
+                        <i class="fas fa-magic me-2"></i>Optimize Cart (Find Cheaper)
+                    </button>
+                    <div id="optimizationResult" class="alert alert-success d-none mb-3"></div>
+
                     <button class="btn btn-outline-danger w-100 rounded-pill" onclick="clearCart()">
                         <i class="fas fa-trash-alt me-2"></i>Clear Cart
                     </button>
@@ -89,8 +95,10 @@
     function displayCart(items) {
         const container = document.getElementById('cartItems');
         const checkoutBtn = document.getElementById('checkoutBtn');
+        const optimizeBtn = document.getElementById('optimizeBtn');
         
         if (!items || items.length === 0) {
+            if (optimizeBtn) optimizeBtn.disabled = true;
             container.innerHTML = `
                 <div class="text-center py-5 bg-white rounded-4 shadow-sm">
                     <i class="fas fa-shopping-basket fa-3x text-muted mb-3"></i>
@@ -183,22 +191,48 @@
     }
 
     async function clearCart() {
-        if(!confirm('Are you sure you want to empty your cart?')) return;
+        if (!confirm('Are you sure you want to clear your cart?')) return;
         
         try {
-            const response = await fetch('/api/cart/clear', {
-                method: 'POST',
-                credentials: 'include'
-            });
-
+            const response = await fetch('/api/cart/clear', { method: 'POST', credentials: 'include' });
             if (response.ok) {
+                cartData = [];
+                displayCart([]);
                 showMessage('Cart cleared');
-                loadCart();
-            } else {
-                showMessage('Failed to clear cart', 'error');
             }
         } catch (error) {
             showMessage('Network error', 'error');
+        }
+    }
+
+    async function optimizeCart() {
+        const btn = document.getElementById('optimizeBtn');
+        const resultDiv = document.getElementById('optimizationResult');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div> Searching...';
+        resultDiv.classList.add('d-none');
+        
+        try {
+            const response = await fetch('/api/cart/optimize');
+            const data = await response.json();
+            
+            if (response.ok) {
+                resultDiv.classList.remove('d-none');
+                resultDiv.innerHTML = `
+                    <strong>${data.message}</strong><br>
+                    Current Total: ₹${data.original_total}<br>
+                    Optimized Total: ₹${data.new_total}<br>
+                    <span class="text-danger fw-bold">You Save: ₹${data.savings}</span>
+                `;
+            } else {
+                showMessage(data.error || 'Optimization failed', 'error');
+            }
+        } catch (error) {
+            showMessage('Network error', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic me-2"></i>Optimize Cart (Find Cheaper)';
         }
     }
 
