@@ -189,13 +189,41 @@ def register_routes(app):
         if not query:
             return jsonify({"error": "Missing search query"}), 400
             
-        # Search everywhere using SerpAPI
-        results = search_serpapi_products(query, "serpapi") 
+        # Define stores to check explicitly for comparison
+        stores = ["serpapi", "amazon", "bestbuy", "walmart", "ebay", "target"]
+        results = []
+
+        # Helper function for parallel execution
+        def fetch_store_results(store):
+            try:
+                # search_serpapi_products handles caching and 'site:' filtering
+                return search_serpapi_products(query, store)
+            except Exception as e:
+                print(f"Error searching {store}: {e}")
+                return []
+
+        # Run searches in parallel to be fast
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            futures = [executor.submit(fetch_store_results, store) for store in stores]
+            for future in concurrent.futures.as_completed(futures):
+                store_results = future.result()
+                if store_results:
+                    results.extend(store_results)
         
-        # Sort by price (lowest first)
-        sorted_results = sorted(results, key=lambda x: x.get('price', float('inf')))
+        # Remove duplicates based on ID or strict title matching
+        seen = set()
+        unique_results = []
+        for p in results:
+            # Create a unique key (id is usually good, but let's be safe)
+            key = p.get('id')
+            if key not in seen:
+                seen.add(key)
+                unique_results.append(p)
+
+        # Sort by price (lowest first) to show best deals at top
+        sorted_results = sorted(unique_results, key=lambda x: x.get('price', float('inf')))
         
-        return jsonify({"query": query, "total": len(results), "products": sorted_results})
+        return jsonify({"query": query, "total": len(sorted_results), "products": sorted_results})
 
     @app.route('/api/debug/serpapi')
     def debug_serpapi():

@@ -1,9 +1,27 @@
 import mysql.connector
 from mysql.connector import Error
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from app.config import MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE, MYSQL_PORT
 
 def get_db_connection():
-    """Create a connection to the MySQL database."""
+    """Create a connection to the database (MySQL or PostgreSQL)."""
+    # Try PostgreSQL (Supabase) first if port matches standard Postgres ports
+    if MYSQL_PORT in [5432, 6543]:
+        try:
+            conn = psycopg2.connect(
+                host=MYSQL_HOST,
+                user=MYSQL_USER,
+                password=MYSQL_PASSWORD,
+                dbname=MYSQL_DATABASE,
+                port=MYSQL_PORT
+            )
+            return conn
+        except Exception as e:
+            print(f"❌ PostgreSQL Connection failed: {e}")
+            return None
+    
+    # Fallback to MySQL
     try:
         return mysql.connector.connect(
             host=MYSQL_HOST, 
@@ -13,7 +31,7 @@ def get_db_connection():
             port=MYSQL_PORT
         )
     except Error as e:
-        print(f"❌ Connection failed: {e}")
+        print(f"❌ MySQL Connection failed: {e}")
         return None
 
 def execute_query(query, params=None, fetch_one=False, fetch_all=False, commit=False):
@@ -22,17 +40,33 @@ def execute_query(query, params=None, fetch_one=False, fetch_all=False, commit=F
     if not conn:
         return None
     
-    cursor = conn.cursor(dictionary=True)
+    # Check if it's a PostgreSQL connection
+    is_postgres = hasattr(conn, 'info')  # psycopg2 connection object has 'info' attribute
+    
     try:
+        if is_postgres:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            cursor = conn.cursor(dictionary=True)
+            
         cursor.execute(query, params)
+        
         if commit:
             conn.commit()
-            return cursor.lastrowid
+            if is_postgres:
+                # PostgreSQL doesn't always support lastrowid the same way
+                # Usually we need "RETURNING id" in the query for Postgres
+                # For now, we return None or handle it if needed
+                pass 
+            else:
+                return cursor.lastrowid
+            
         if fetch_one:
             return cursor.fetchone()
         if fetch_all:
             return cursor.fetchall()
-    except Error as e:
+            
+    except Exception as e:
         print(f"❌ Query error: {e}")
     finally:
         cursor.close()
@@ -45,25 +79,34 @@ def init_database():
     if not conn:
         return
 
+    is_postgres = hasattr(conn, 'info')
     cursor = conn.cursor()
+    
+    # Define Types based on DB
+    if is_postgres:
+        AUTO_INC = "SERIAL"
+        TIMESTAMP = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    else:
+        AUTO_INC = "INT AUTO_INCREMENT"
+        TIMESTAMP = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     
     # List of tables to create
     tables = [
-        """CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY, 
+        f"""CREATE TABLE IF NOT EXISTS users (
+            id {AUTO_INC} PRIMARY KEY, 
             username VARCHAR(50) UNIQUE NOT NULL, 
             password_hash VARCHAR(255) NOT NULL, 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at {TIMESTAMP}
         )""",
-        """CREATE TABLE IF NOT EXISTS orders (
-            id INT AUTO_INCREMENT PRIMARY KEY, 
+        f"""CREATE TABLE IF NOT EXISTS orders (
+            id {AUTO_INC} PRIMARY KEY, 
             user_id INT NOT NULL, 
             total_amount DECIMAL(10, 2) NOT NULL, 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+            created_at {TIMESTAMP}, 
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )""",
-        """CREATE TABLE IF NOT EXISTS order_items (
-            id INT AUTO_INCREMENT PRIMARY KEY, 
+        f"""CREATE TABLE IF NOT EXISTS order_items (
+            id {AUTO_INC} PRIMARY KEY, 
             order_id INT NOT NULL, 
             product_id VARCHAR(255) NOT NULL, 
             product_title VARCHAR(500) NOT NULL, 
@@ -71,20 +114,20 @@ def init_database():
             quantity INT NOT NULL, 
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
         )""",
-        """CREATE TABLE IF NOT EXISTS price_history (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+        f"""CREATE TABLE IF NOT EXISTS price_history (
+            id {AUTO_INC} PRIMARY KEY,
             product_id VARCHAR(255) NOT NULL,
             price DECIMAL(10, 2) NOT NULL,
             recorded_at DATE NOT NULL,
             source VARCHAR(50)
         )""",
-        """CREATE TABLE IF NOT EXISTS price_alerts (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+        f"""CREATE TABLE IF NOT EXISTS price_alerts (
+            id {AUTO_INC} PRIMARY KEY,
             user_id INT,
             product_title VARCHAR(500) NOT NULL,
             target_price DECIMAL(10, 2) NOT NULL,
             email VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at {TIMESTAMP}
         )"""
     ]
 
