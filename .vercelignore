@@ -1,0 +1,10 @@
+
+# Vercel Ignore
+*.pyc
+__pycache__
+db.sqlite3
+.env
+.venv
+venv
+run.py
+test_db.py

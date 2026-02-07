@@ -81,9 +81,16 @@ FLASK_SECRET_KEY=your_secret_key_here
 ### 4. Run the Application
 Start the Flask development server:
 ```bash
-python app.py
+python run.py
 ```
 Visit **http://localhost:5000** in your browser.
+
+## ☁️ Deployment
+
+This project is configured for deployment on **Vercel** with **Supabase**.
+- `vercel.json`: Configuration for Serverless Functions.
+- `api/index.py`: Entry point for Vercel.
+
 
 ---
 
