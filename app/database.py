@@ -14,7 +14,8 @@ def get_db_connection():
                 user=MYSQL_USER,
                 password=MYSQL_PASSWORD,
                 dbname=MYSQL_DATABASE,
-                port=MYSQL_PORT
+                port=MYSQL_PORT,
+                sslmode='require'
             )
             return conn
         except Exception as e:
@@ -156,16 +157,24 @@ def create_order(user_id, total_amount, items):
     """Create a new order with items."""
     conn = get_db_connection()
     if not conn:
-        return None
+        return None, "Database connection failed"
         
+    is_postgres = hasattr(conn, 'info')
     cursor = conn.cursor()
     try:
         # 1. Create Order
-        cursor.execute(
-            "INSERT INTO orders (user_id, total_amount) VALUES (%s, %s)",
-            (user_id, total_amount)
-        )
-        order_id = cursor.lastrowid
+        if is_postgres:
+            cursor.execute(
+                "INSERT INTO orders (user_id, total_amount) VALUES (%s, %s) RETURNING id",
+                (user_id, total_amount)
+            )
+            order_id = cursor.fetchone()[0]
+        else:
+            cursor.execute(
+                "INSERT INTO orders (user_id, total_amount) VALUES (%s, %s)",
+                (user_id, total_amount)
+            )
+            order_id = cursor.lastrowid
         
         # 2. Add Items
         item_values = [
@@ -179,11 +188,11 @@ def create_order(user_id, total_amount, items):
         )
         
         conn.commit()
-        return order_id
-    except Error as e:
+        return order_id, None
+    except Exception as e:
         print(f"❌ Order error: {e}")
         conn.rollback()
-        return None
+        return None, str(e)
     finally:
         cursor.close()
         conn.close()

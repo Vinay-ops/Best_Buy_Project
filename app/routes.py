@@ -357,12 +357,12 @@ def register_routes(app):
         user_id = session["user_id"]
         total_amount = sum(item["price"] * item["quantity"] for item in cart)
         
-        order_id = create_order(user_id, total_amount, cart)
+        order_id, error_msg = create_order(user_id, total_amount, cart)
         if order_id:
             session["cart"] = [] # Clear cart
             return jsonify({"message": "Order placed successfully!", "order_id": order_id}), 201
         
-        return jsonify({"error": "Failed to place order"}), 500
+        return jsonify({"error": f"Failed to place order: {error_msg}"}), 500
 
     @app.route('/api/orders')
     def get_orders():

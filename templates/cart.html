@@ -41,7 +41,7 @@
                         <span class="h5 fw-bold text-primary" id="total">₹0.00</span>
                     </div>
                     
-                    <button id="checkoutBtn" class="btn btn-primary-custom w-100 btn-lg mb-3" disabled onclick="checkout()">
+                    <button id="checkoutBtn" class="btn btn-primary-custom w-100 btn-lg mb-3" disabled onclick="openPaymentModal()">
                         Proceed to Checkout
                     </button>
                     <!-- New: Optimize Cart Button -->
@@ -64,6 +64,84 @@
         </div>
     </div>
 </div>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Select Payment Method</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Step 1: Payment Options -->
+                <div id="paymentOptions">
+                    <p class="text-muted mb-3">Choose how you want to pay:</p>
+                    
+                    <div class="d-grid gap-3">
+                        <button class="btn btn-outline-primary p-3 text-start d-flex align-items-center justify-content-between rounded-3 border-2" onclick="selectPayment('upi')">
+                            <span class="d-flex align-items-center">
+                                <i class="fas fa-mobile-alt fa-lg me-3 text-primary"></i>
+                                <div>
+                                    <div class="fw-bold">UPI</div>
+                                    <small class="text-muted">Google Pay, PhonePe, Paytm</small>
+                                </div>
+                            </span>
+                            <i class="fas fa-chevron-right text-muted"></i>
+                        </button>
+                        
+                        <button class="btn btn-outline-secondary p-3 text-start d-flex align-items-center justify-content-between rounded-3 border-2" disabled>
+                            <span class="d-flex align-items-center">
+                                <i class="far fa-credit-card fa-lg me-3"></i>
+                                <div>
+                                    <div class="fw-bold">Credit / Debit Card</div>
+                                    <small class="text-muted">Currently Unavailable</small>
+                                </div>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: UPI Input -->
+                <div id="upiSection" class="d-none">
+                    <button class="btn btn-link text-decoration-none px-0 mb-3 text-muted" onclick="showPaymentOptions()">
+                        <i class="fas fa-arrow-left me-1"></i> Back to options
+                    </button>
+                    
+                    <div class="text-center mb-4">
+                        <i class="fas fa-qrcode fa-3x text-primary mb-2"></i>
+                        <h5 class="fw-bold">UPI Payment</h5>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-uppercase text-muted">Enter UPI ID</label>
+                        <div class="input-group input-group-lg">
+                            <input type="text" id="upiId" class="form-control" placeholder="username@bank" value="test@upi">
+                            <span class="input-group-text bg-light"><i class="fas fa-check-circle text-success"></i></span>
+                        </div>
+                        <div class="form-text">Use any fake ID for this demo (e.g. test@upi)</div>
+                    </div>
+                    
+                    <button id="payBtn" class="btn btn-primary-custom w-100 btn-lg rounded-pill" onclick="processPayment()">
+                        Pay <span id="payAmount"></span>
+                    </button>
+                </div>
+
+                <!-- Step 3: Success Animation -->
+                <div id="paymentSuccess" class="d-none text-center py-4">
+                    <div class="mb-4">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-success text-white rounded-circle" style="width: 80px; height: 80px;">
+                            <i class="fas fa-check fa-3x animate-bounce"></i>
+                        </div>
+                    </div>
+                    <h4 class="fw-bold text-success mb-2">Payment Successful!</h4>
+                    <p class="text-muted mb-0">Placing your order...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -302,33 +380,104 @@
         }
     }
 
-    async function checkout() {
-        const btn = document.getElementById('checkoutBtn');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
-        btn.disabled = true;
+    // --- Payment Flow ---
+    let paymentModal;
+    
+    function openPaymentModal() {
+        // Initialize modal if not already done
+        if (!paymentModal) {
+            paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
+        }
+        
+        // Reset state
+        showPaymentOptions();
+        
+        // Update amount
+        const totalText = document.getElementById('total').textContent;
+        document.getElementById('payAmount').textContent = totalText;
+        
+        paymentModal.show();
+    }
 
+    function showPaymentOptions() {
+        document.getElementById('paymentOptions').classList.remove('d-none');
+        document.getElementById('upiSection').classList.add('d-none');
+        document.getElementById('paymentSuccess').classList.add('d-none');
+    }
+
+    function selectPayment(method) {
+        if (method === 'upi') {
+            document.getElementById('paymentOptions').classList.add('d-none');
+            document.getElementById('upiSection').classList.remove('d-none');
+            document.getElementById('upiSection').classList.add('animate-fade-in');
+        }
+    }
+
+    async function processPayment() {
+        const payBtn = document.getElementById('payBtn');
+        const originalText = payBtn.innerHTML;
+        
+        // 1. Show processing state
+        payBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+        payBtn.disabled = true;
+        
+        // 2. Simulate Network Delay (Fake Payment)
+        await new Promise(r => setTimeout(r, 2000));
+        
+        // 3. Show Success Animation
+        document.getElementById('upiSection').classList.add('d-none');
+        document.getElementById('paymentSuccess').classList.remove('d-none');
+        document.getElementById('paymentSuccess').classList.add('animate-scale-in');
+        
+        // 4. Call Real Checkout API
+        await performCheckout();
+    }
+
+    async function performCheckout() {
         try {
             const response = await fetch('/api/checkout', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 credentials: 'include'
             });
 
             const result = await response.json();
             
             if (response.ok) {
-                showMessage('Order placed successfully! Redirecting...');
-                setTimeout(() => window.location.href = '/orders', 1500);
+                // Wait a moment for the user to see "Payment Successful"
+                setTimeout(() => {
+                    window.location.href = '/orders';
+                }, 1500);
             } else {
+                // If backend fails, show error in modal or alert
+                if (paymentModal) paymentModal.hide();
                 showMessage(result.error || 'Checkout failed', 'error');
-                btn.innerHTML = originalText;
-                btn.disabled = false;
             }
         } catch (error) {
+            if (paymentModal) paymentModal.hide();
             showMessage('Network error during checkout', 'error');
-            btn.innerHTML = originalText;
-            btn.disabled = false;
         }
     }
+
+    // Kept for compatibility if called elsewhere, but openPaymentModal is primary now
+    async function checkout() {
+        openPaymentModal();
+    }
 </script>
+<style>
+    .animate-bounce {
+        animation: bounce 1s infinite;
+    }
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    .animate-scale-in {
+        animation: scaleIn 0.3s ease-out forwards;
+    }
+    @keyframes scaleIn {
+        from { transform: scale(0.8); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+</style>
 {% endblock %}
