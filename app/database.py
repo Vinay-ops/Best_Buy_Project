@@ -57,8 +57,7 @@ def execute_query(query, params=None, fetch_one=False, fetch_all=False, commit=F
             if is_postgres:
                 # PostgreSQL doesn't always support lastrowid the same way
                 # Usually we need "RETURNING id" in the query for Postgres
-                # For now, we return None or handle it if needed
-                pass 
+                return True 
             else:
                 return cursor.lastrowid
             
