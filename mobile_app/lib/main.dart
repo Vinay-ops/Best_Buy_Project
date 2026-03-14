@@ -78,20 +78,25 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _refreshSession() async {
     try {
+      debugPrint('🔐 Refreshing session...');
       final wasLoggedIn = _loggedIn;
       final status = await _service.authStatus();
+      debugPrint('🔐 Auth status: $status');
       setState(() {
         _loggedIn = status['logged_in'] == true;
         _username = status['user']?['username'];
       });
+      debugPrint('🔐 Updated login state: $_loggedIn, username: $_username');
+
       if (wasLoggedIn != _loggedIn) {
+        debugPrint('🔐 Login state changed: $wasLoggedIn → $_loggedIn');
         // await _supabaseSync.syncAuthState(
         //   username: _username,
         //   loggedIn: _loggedIn,
         // );
       }
     } catch (e) {
-      debugPrint('Session error: $e');
+      debugPrint('❌ Session error: $e');
     }
   }
 
@@ -139,12 +144,15 @@ class _AppShellState extends State<AppShell> {
         loggedIn: _loggedIn,
         onCartUpdated: _refreshCartCount,
         onNeedsLogin: () => setState(() => _currentIndex = 4),
-        key: ValueKey(_cartCount), // Force rebuild when cart changes
+        key: ValueKey(
+          '$_loggedIn-$_cartCount',
+        ), // Force rebuild when login OR cart changes
       ),
       OrdersScreen(
         service: _service,
         loggedIn: _loggedIn,
         onNeedsLogin: () => setState(() => _currentIndex = 4),
+        key: ValueKey(_loggedIn), // Force rebuild when login status changes
       ),
       ProfileScreen(
         service: _service,
@@ -624,10 +632,16 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _startCheckout() async {
+    debugPrint('🛒 Starting checkout...');
+    debugPrint('🛒 Logged in: ${widget.loggedIn}');
+
     if (!widget.loggedIn) {
+      debugPrint('❌ Not logged in, requesting login');
       widget.onNeedsLogin();
       return;
     }
+
+    debugPrint('✅ User is logged in, proceeding with checkout');
 
     final upiCtrl = TextEditingController(text: 'test@upi');
     final approved = await showDialog<bool>(
@@ -824,13 +838,41 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (widget.loggedIn) _fetch();
   }
 
+  @override
+  void didUpdateWidget(OrdersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refresh orders if logged in status changed or screen is visited
+    if (widget.loggedIn && oldWidget.loggedIn != widget.loggedIn) {
+      debugPrint('📋 Orders Screen: Login status changed, fetching orders...');
+      _fetch();
+    } else if (widget.loggedIn) {
+      debugPrint('📋 Orders Screen: Refreshing orders...');
+      _fetch();
+    }
+  }
+
   Future<void> _fetch() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
+      debugPrint('📋 Fetching orders...');
       final res = await widget.service.getOrders();
-      setState(() => _orders = res);
+      debugPrint('📋 Orders response: $res');
+      debugPrint('📋 Orders count: ${res.length}');
+      if (mounted) {
+        setState(() => _orders = res);
+        debugPrint('✅ Orders loaded: ${_orders.length} orders');
+      }
+    } catch (e) {
+      debugPrint('❌ Orders fetch error: $e');
+      if (mounted) {
+        setState(() => _orders = []);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load orders: $e')));
+      }
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -2306,6 +2348,84 @@ class _DetailsBottomActions extends StatelessWidget {
   }
 }
 
+class _ProfileMenuTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ProfileMenuTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF197EF1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: const Color(0xFF197EF1), size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF061233),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FullWidthButton extends StatelessWidget {
   final String label;
   final IconData? icon;
@@ -2349,6 +2469,547 @@ class _FullWidthButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ============ WISHLIST SCREEN ============
+class WishlistScreen extends StatefulWidget {
+  final BackendService service;
+  const WishlistScreen({required this.service});
+  @override
+  State<WishlistScreen> createState() => _WishlistScreenState();
+}
+
+class _WishlistScreenState extends State<WishlistScreen> {
+  List<Map<String, dynamic>> _wishlist = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWishlist();
+  }
+
+  Future<void> _loadWishlist() async {
+    // Mock wishlist data - in production, this would come from backend
+    setState(() {
+      _wishlist = [
+        {
+          'id': '1',
+          'title': 'iPhone 15 Pro',
+          'price': 99999,
+          'image': 'https://via.placeholder.com/150',
+        },
+        {
+          'id': '2',
+          'title': 'Sony WH-1000XM5',
+          'price': 29999,
+          'image': 'https://via.placeholder.com/150',
+        },
+      ];
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      decoration: const BoxDecoration(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: Colors.white,
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'My Wishlist',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _wishlist.isEmpty
+                ? const Center(child: Text('No items in wishlist'))
+                : ListView.builder(
+                    itemCount: _wishlist.length,
+                    itemBuilder: (ctx, idx) {
+                      final item = _wishlist[idx];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Card(
+                          child: ListTile(
+                            leading: Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.shopping_bag),
+                            ),
+                            title: Text(item['title']),
+                            subtitle: Text('₹${item['price']}'),
+                            trailing: GestureDetector(
+                              onTap: () {
+                                setState(() => _wishlist.removeAt(idx));
+                              },
+                              child: Icon(
+                                Icons.favorite,
+                                color: Colors.red.shade400,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          if (_wishlist.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: _FullWidthButton(
+                label: 'Add All to Cart',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Added all items to cart')),
+                  );
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============ ADDRESSES SCREEN ============
+class AddressesScreen extends StatefulWidget {
+  final BackendService service;
+  const AddressesScreen({required this.service});
+  @override
+  State<AddressesScreen> createState() => _AddressesScreenState();
+}
+
+class _AddressesScreenState extends State<AddressesScreen> {
+  List<Map<String, dynamic>> _addresses = [
+    {
+      'id': '1',
+      'name': 'Home',
+      'address': '123 Main Street, City, State 12345',
+      'isDefault': true,
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      decoration: const BoxDecoration(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: Colors.white,
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Addresses',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _addresses.length,
+              itemBuilder: (ctx, idx) {
+                final addr = _addresses[idx];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                addr['name'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              if (addr['isDefault'])
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade100,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Text(
+                                    'Default',
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            addr['address'],
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              TextButton.icon(
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Edit address'),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.edit),
+                                label: const Text('Edit'),
+                              ),
+                              TextButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _addresses.removeAt(idx);
+                                  });
+                                },
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                label: const Text(
+                                  'Delete',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: _FullWidthButton(
+              icon: Icons.add,
+              label: 'Add New Address',
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Add address form')),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============ NOTIFICATIONS SETTINGS DIALOG ============
+class NotificationsSettingsDialog extends StatefulWidget {
+  @override
+  State<NotificationsSettingsDialog> createState() =>
+      _NotificationsSettingsDialogState();
+}
+
+class _NotificationsSettingsDialogState
+    extends State<NotificationsSettingsDialog> {
+  bool _emailNotifications = true;
+  bool _pushNotifications = true;
+  bool _orderUpdates = true;
+  bool _promotions = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Notification Preferences'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _NotificationToggle(
+              title: 'Email Notifications',
+              value: _emailNotifications,
+              onChanged: (val) => setState(() => _emailNotifications = val),
+            ),
+            _NotificationToggle(
+              title: 'Push Notifications',
+              value: _pushNotifications,
+              onChanged: (val) => setState(() => _pushNotifications = val),
+            ),
+            _NotificationToggle(
+              title: 'Order Updates',
+              value: _orderUpdates,
+              onChanged: (val) => setState(() => _orderUpdates = val),
+            ),
+            _NotificationToggle(
+              title: 'Promotional Offers',
+              value: _promotions,
+              onChanged: (val) => setState(() => _promotions = val),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Preferences saved')));
+            Navigator.pop(context);
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+class _NotificationToggle extends StatelessWidget {
+  final String title;
+  final bool value;
+  final Function(bool) onChanged;
+
+  const _NotificationToggle({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+// ============ LANGUAGE SETTINGS DIALOG ============
+class LanguageSettingsDialog extends StatefulWidget {
+  @override
+  State<LanguageSettingsDialog> createState() => _LanguageSettingsDialogState();
+}
+
+class _LanguageSettingsDialogState extends State<LanguageSettingsDialog> {
+  String _selectedLanguage = 'English';
+  final List<String> _languages = ['English', 'Hindi', 'Tamil', 'Telugu'];
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Select Language'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _languages
+              .map(
+                (lang) => RadioListTile<String>(
+                  title: Text(lang),
+                  value: lang,
+                  groupValue: _selectedLanguage,
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _selectedLanguage = val);
+                    }
+                  },
+                ),
+              )
+              .toList(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Language changed to $_selectedLanguage')),
+            );
+            Navigator.pop(context);
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+// ============ HELP & SUPPORT SCREEN ============
+class HelpSupportScreen extends StatelessWidget {
+  final List<Map<String, String>> _faqs = [
+    {
+      'q': 'How do I place an order?',
+      'a': 'Browse products, add to cart, and proceed to checkout.',
+    },
+    {
+      'q': 'What is the return policy?',
+      'a': '30 days money-back guarantee on all products.',
+    },
+    {
+      'q': 'How can I track my order?',
+      'a': 'Go to Order History to see real-time tracking updates.',
+    },
+    {
+      'q': 'Do you offer international shipping?',
+      'a': 'Currently, we ship only within India.',
+    },
+  ];
+
+  HelpSupportScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      decoration: const BoxDecoration(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: Colors.white,
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Help & Support',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'Frequently Asked Questions',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ..._faqs.map((faq) {
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: ExpansionTile(
+                      title: Text(faq['q'] ?? ''),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(faq['a'] ?? ''),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                const SizedBox(height: 24),
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'Contact Us',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Email: support@bestbuyfinder.com',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Phone: 1-800-BBF-FINDS',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        const SizedBox(height: 12),
+                        _FullWidthButton(
+                          label: 'Send Email',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Email form opened'),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2429,26 +3090,223 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     if (widget.loggedIn) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Welcome, ${widget.username}!',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Profile',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          centerTitle: true,
+          elevation: 0,
+          backgroundColor: Colors.white,
+        ),
+        body: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- Profile Header Section ---
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF197EF1), Color(0xFF105BE3)],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        widget.username ?? 'User',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${widget.username}@bestbuyfinder.app',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // --- Account Section ---
+                const Text(
+                  'Account',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF061233),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _ProfileMenuTile(
+                  icon: Icons.receipt_long,
+                  title: 'Order History',
+                  subtitle: 'View your past orders',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OrdersScreen(
+                          service: widget.service,
+                          loggedIn: widget.loggedIn,
+                          onNeedsLogin: () {},
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _ProfileMenuTile(
+                  icon: Icons.favorite_outline,
+                  title: 'Wishlist',
+                  subtitle: 'Your saved items',
+                  onTap: () => _showWishlistScreen(),
+                ),
+                _ProfileMenuTile(
+                  icon: Icons.location_on_outlined,
+                  title: 'Addresses',
+                  subtitle: 'Manage delivery addresses',
+                  onTap: () => _showAddressesScreen(),
+                ),
+                const SizedBox(height: 24),
+
+                // --- Preferences Section ---
+                const Text(
+                  'Preferences',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF061233),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _ProfileMenuTile(
+                  icon: Icons.notifications_outlined,
+                  title: 'Notifications',
+                  subtitle: 'Email & push alerts',
+                  onTap: () => _showNotificationsSettings(),
+                ),
+                _ProfileMenuTile(
+                  icon: Icons.language,
+                  title: 'Language',
+                  subtitle: 'English',
+                  onTap: () => _showLanguageSettings(),
+                ),
+                const SizedBox(height: 24),
+
+                // --- Support Section ---
+                const Text(
+                  'Support',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF061233),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _ProfileMenuTile(
+                  icon: Icons.help_outline,
+                  title: 'Help & Support',
+                  subtitle: 'FAQs and contact us',
+                  onTap: () => _showHelpSupport(),
+                ),
+                _ProfileMenuTile(
+                  icon: Icons.info_outline,
+                  title: 'About',
+                  subtitle: 'App version & info',
+                  onTap: () => _showAbout(),
+                ),
+                const SizedBox(height: 32),
+
+                // --- Logout Button ---
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.red.shade200),
+                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.red.shade50,
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () async {
+                        // Confirm logout
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Logout'),
+                            content: const Text(
+                              'Are you sure you want to logout?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                ),
+                                child: const Text('Logout'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirmed == true && mounted) {
+                          await widget.service.logout();
+                          await _authService.clearLoginState();
+                          debugPrint('✅ Login state cleared');
+                          await widget.onAuthUpdated();
+                        }
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.logout, color: Colors.red.shade600),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Logout',
+                            style: TextStyle(
+                              color: Colors.red.shade600,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            _FullWidthButton(
-              label: 'Logout',
-              onTap: () async {
-                await widget.service.logout();
-                // Clear persistent login state
-                await _authService.clearLoginState();
-                debugPrint('✅ Login state cleared');
-                await widget.onAuthUpdated();
-              },
-            ),
-          ],
+          ),
         ),
       );
     }
@@ -2515,6 +3373,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showWishlistScreen() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => WishlistScreen(service: widget.service),
+    );
+  }
+
+  void _showAddressesScreen() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => AddressesScreen(service: widget.service),
+    );
+  }
+
+  void _showNotificationsSettings() {
+    showDialog(
+      context: context,
+      builder: (ctx) => NotificationsSettingsDialog(),
+    );
+  }
+
+  void _showLanguageSettings() {
+    showDialog(context: context, builder: (ctx) => LanguageSettingsDialog());
+  }
+
+  void _showHelpSupport() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => HelpSupportScreen(),
+    );
+  }
+
+  void _showAbout() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AboutDialog(
+        applicationName: 'Best Buy Finder',
+        applicationVersion: '1.0.0',
+        children: [
+          const Text(
+            'Your ultimate shopping companion for finding the best deals.',
+          ),
+          const SizedBox(height: 16),
+          const Text('Version: 1.0.0'),
+          const Text('© 2024 Best Buy Finder. All rights reserved.'),
         ],
       ),
     );
