@@ -1,0 +1,2565 @@
+import 'package:flutter/material.dart';
+import 'api/api_client.dart';
+import 'api/backend_service.dart';
+import 'animations.dart';
+import 'services/auth_service.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Initialize AuthService for persistent login
+  await AuthService().initialize();
+  runApp(const BestBuyFinderApp());
+}
+
+class BestBuyFinderApp extends StatelessWidget {
+  const BestBuyFinderApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'BestBuyFinder',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF197EF1)),
+        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
+        fontFamily: 'Inter',
+      ),
+      home: const AppShell(),
+    );
+  }
+}
+
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
+
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  final BackendService _service = BackendService(client: ApiClient.instance);
+  final AuthService _authService = AuthService();
+  // final SupabaseSyncService _supabaseSync = SupabaseSyncService.instance;
+  int _currentIndex = 0;
+  bool _loggedIn = false;
+  String? _username;
+  int _cartCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+    _refreshCartCount();
+  }
+
+  Future<void> _restoreSession() async {
+    try {
+      // First check if user was previously logged in
+      final wasLoggedIn = await _authService.isLoggedIn();
+      final restoredUsername = await _authService.getUsername();
+
+      if (wasLoggedIn && restoredUsername != null) {
+        setState(() {
+          _loggedIn = true;
+          _username = restoredUsername;
+        });
+        debugPrint('✅ Session restored for user: $_username');
+        return;
+      }
+
+      // If not previously logged in, check current auth status from server
+      _refreshSession();
+    } catch (e) {
+      debugPrint('Session restore error: $e');
+      _refreshSession();
+    }
+  }
+
+  Future<void> _refreshSession() async {
+    try {
+      final wasLoggedIn = _loggedIn;
+      final status = await _service.authStatus();
+      setState(() {
+        _loggedIn = status['logged_in'] == true;
+        _username = status['user']?['username'];
+      });
+      if (wasLoggedIn != _loggedIn) {
+        // await _supabaseSync.syncAuthState(
+        //   username: _username,
+        //   loggedIn: _loggedIn,
+        // );
+      }
+    } catch (e) {
+      debugPrint('Session error: $e');
+    }
+  }
+
+  Future<void> _refreshCartCount() async {
+    try {
+      final cartData = await _service.getCart();
+      debugPrint('🔄 Refreshing cart count...');
+      debugPrint('Cart data: ${cartData['cart']}');
+      final cartRaw = cartData['cart'];
+      if (cartRaw is List) {
+        final cart = cartRaw
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+        setState(() {
+          _cartCount = cart.fold<int>(
+            0,
+            (sum, item) => sum + (int.tryParse('${item['quantity']}') ?? 0),
+          );
+        });
+        debugPrint('✅ Cart count updated: $_cartCount items');
+        // await _supabaseSync.syncCart(cart: cart, username: _username);
+      }
+    } catch (e) {
+      debugPrint('❌ Cart count error: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      DiscoverScreen(
+        service: _service,
+        onCartUpdated: _refreshCartCount,
+        username: _username,
+      ),
+      DiscoverScreen(
+        service: _service,
+        onCartUpdated: _refreshCartCount,
+        isSearch: true,
+        username: _username,
+      ),
+      CartScreen(
+        service: _service,
+        loggedIn: _loggedIn,
+        onCartUpdated: _refreshCartCount,
+        onNeedsLogin: () => setState(() => _currentIndex = 4),
+        key: ValueKey(_cartCount), // Force rebuild when cart changes
+      ),
+      OrdersScreen(
+        service: _service,
+        loggedIn: _loggedIn,
+        onNeedsLogin: () => setState(() => _currentIndex = 4),
+      ),
+      ProfileScreen(
+        service: _service,
+        loggedIn: _loggedIn,
+        username: _username,
+        onAuthUpdated: () async {
+          await _refreshSession();
+          await _refreshCartCount();
+        },
+      ),
+    ];
+
+    return Scaffold(
+      body: IndexedStack(index: _currentIndex, children: screens),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: Colors.grey.shade200, width: 0.5),
+          ),
+        ),
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          currentIndex: _currentIndex,
+          selectedItemColor: const Color(0xFF197EF1),
+          unselectedItemColor: const Color(0xFF93A3BC),
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
+          elevation: 0,
+          onTap: (i) => setState(() => _currentIndex = i),
+          items: [
+            _navItem(Icons.home_outlined, Icons.home, 'Home'),
+            _navItem(Icons.search, Icons.search, 'Search'),
+            BottomNavigationBarItem(
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.shopping_cart_outlined),
+                  if (_cartCount > 0)
+                    Positioned(
+                      right: -8,
+                      top: -8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF197EF1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '$_cartCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              label: 'Cart',
+            ),
+            _navItem(Icons.assignment_outlined, Icons.assignment, 'Orders'),
+            _navItem(Icons.person_outline, Icons.person, 'Profile'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  BottomNavigationBarItem _navItem(
+    IconData icon,
+    IconData activeIcon,
+    String label,
+  ) {
+    return BottomNavigationBarItem(
+      icon: Icon(icon),
+      activeIcon: Icon(activeIcon),
+      label: label,
+    );
+  }
+}
+
+// --- Discover Screen ---
+class DiscoverScreen extends StatefulWidget {
+  final BackendService service;
+  final VoidCallback onCartUpdated;
+  final bool isSearch;
+  final String? username;
+
+  const DiscoverScreen({
+    super.key,
+    required this.service,
+    required this.onCartUpdated,
+    this.isSearch = false,
+    this.username,
+  });
+
+  @override
+  State<DiscoverScreen> createState() => _DiscoverScreenState();
+}
+
+class _DiscoverScreenState extends State<DiscoverScreen> {
+  // final SupabaseSyncService _supabaseSync = SupabaseSyncService.instance;
+  final TextEditingController _searchCtrl = TextEditingController();
+  List<Map<String, dynamic>> _allProducts = [];
+  List<Map<String, dynamic>> _products = [];
+  bool _loading = true;
+  String _selectedCategory = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      debugPrint('📦 Fetching featured products...');
+      final res = await widget.service.getProducts();
+      debugPrint('📦 Fetched ${res.length} featured products');
+      setState(() {
+        _allProducts = res;
+        _products = res;
+      });
+    } catch (e) {
+      debugPrint('❌ Fetch error: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load products: $e')));
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _performSearch() async {
+    final query = _searchCtrl.text.trim();
+    if (query.isEmpty) {
+      _applyFilters();
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      debugPrint('🔍 Performing search for: $query');
+      final res = await widget.service.searchProducts(query);
+      debugPrint('📊 Search returned ${res.length} products');
+      setState(() {
+        _allProducts = res;
+      });
+      _applyFilters();
+      if (res.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No products found. Try different search.'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Search error: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Search error: $e')));
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  void _applyFilters() {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    final source = _normalizeSource(_selectedCategory);
+
+    final filtered = _allProducts.where((product) {
+      final title = '${product['title'] ?? product['name'] ?? ''}'
+          .toLowerCase();
+      final itemSource = _normalizeSource('${product['source'] ?? ''}');
+
+      final queryMatch =
+          query.isEmpty || title.contains(query) || itemSource.contains(query);
+      final sourceMatch = source == 'all' || itemSource == source;
+      return queryMatch && sourceMatch;
+    }).toList();
+
+    setState(() => _products = filtered);
+  }
+
+  String _normalizeSource(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll('&', 'and')
+        .replaceAll("'", '')
+        .replaceAll(' ', '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        children: [
+          _DiscoveryHeader(),
+          const SizedBox(height: 20),
+          _SearchBar(
+            controller: _searchCtrl,
+            onChanged: (_) => _applyFilters(),
+            onSubmitted: (_) =>
+                widget.isSearch ? _performSearch() : _applyFilters(),
+          ),
+          const SizedBox(height: 10),
+          if (widget.isSearch)
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: _performSearch,
+                icon: const Icon(Icons.search),
+                label: const Text('Search Online'),
+              ),
+            ),
+          const SizedBox(height: 20),
+          _CategoryFilters(
+            selected: _selectedCategory,
+            onChanged: (val) {
+              setState(() => _selectedCategory = val);
+              _applyFilters();
+            },
+          ),
+          const SizedBox(height: 24),
+          _BestDealCard(
+            product: _bestDeal(),
+            onTap: () => _openDetails(_bestDeal()),
+          ),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Recommended for You',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF061233),
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() {
+                  // Already showing all products
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Already showing all recommended'),
+                    ),
+                  );
+                }),
+                child: const Text(
+                  'See all',
+                  style: TextStyle(color: Color(0xFF197EF1)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.72,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: _products.length,
+                  itemBuilder: (ctx, i) => _DiscoveryProductCard(
+                    product: _products[i],
+                    onTap: () => _openDetails(_products[i]),
+                    onAdd: () async {
+                      try {
+                        debugPrint(
+                          '🛒 Adding to cart: ${_products[i]['title']}',
+                        );
+                        final response = await widget.service.addToCart(
+                          _products[i],
+                        );
+
+                        if (response.ok) {
+                          debugPrint('✅ Added to cart successfully');
+                          widget.onCartUpdated();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('✓ Added to cart'),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                          }
+                        } else {
+                          debugPrint(
+                            '❌ Failed to add to cart: ${response.data}',
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Failed to add: ${response.data['error'] ?? 'Unknown error'}',
+                                ),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        debugPrint('❌ Add to cart exception: $e');
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic>? _bestDeal() {
+    if (_products.isEmpty) return null;
+    final sorted = [..._products]
+      ..sort((a, b) {
+        final pa = double.tryParse('${a['price']}') ?? double.infinity;
+        final pb = double.tryParse('${b['price']}') ?? double.infinity;
+        return pa.compareTo(pb);
+      });
+    return sorted.first;
+  }
+
+  void _openDetails(Map<String, dynamic>? product) {
+    if (product == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailsScreen(
+          product: product,
+          service: widget.service,
+          onCartUpdated: widget.onCartUpdated,
+          username: widget.username,
+        ),
+      ),
+    );
+  }
+}
+
+// --- Cart Screen ---
+class CartScreen extends StatefulWidget {
+  final BackendService service;
+  final bool loggedIn;
+  final VoidCallback onCartUpdated;
+  final VoidCallback onNeedsLogin;
+
+  const CartScreen({
+    super.key,
+    required this.service,
+    required this.loggedIn,
+    required this.onCartUpdated,
+    required this.onNeedsLogin,
+  });
+
+  @override
+  State<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends State<CartScreen> {
+  List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _suggestions = [];
+  bool _loading = true;
+  bool _optimizing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  @override
+  void didUpdateWidget(CartScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    debugPrint('🔄 CartScreen updated, refreshing...');
+    _fetch();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    debugPrint('🔄 CartScreen dependencies changed, refreshing...');
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    try {
+      debugPrint('📥 Fetching cart data...');
+      final res = await widget.service.getCart();
+      debugPrint('📥 Full response: $res');
+      final cartData = res['cart'];
+      debugPrint('📥 Cart data: $cartData');
+      debugPrint('📥 Cart data type: ${cartData.runtimeType}');
+
+      if (cartData is List) {
+        final items = cartData
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+        if (mounted) setState(() => _items = items);
+        debugPrint('✅ Cart updated with ${items.length} items');
+        for (var item in items) {
+          debugPrint(
+            '  - ${item['title']}: qty=${item['quantity']}, price=${item['price']}',
+          );
+        }
+      } else {
+        if (mounted) setState(() => _items = []);
+        debugPrint('⚠️  Cart data is not a list: ${cartData.runtimeType}');
+      }
+    } catch (e) {
+      debugPrint('❌ Cart fetch error: $e');
+      if (mounted) setState(() => _items = []);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _optimizeCart() async {
+    setState(() => _optimizing = true);
+    try {
+      final res = await widget.service.optimizeCart();
+      final suggestionsRaw = res['suggestions'];
+      if (suggestionsRaw is List) {
+        setState(() {
+          _suggestions = suggestionsRaw
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        });
+      }
+
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Cart Optimized'),
+          content: Text(
+            'Current total: ₹${res['original_total']}\n'
+            'Optimized total: ₹${res['new_total']}\n'
+            'You save: ₹${res['savings']}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Nice'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Optimization failed: $e')));
+    } finally {
+      setState(() => _optimizing = false);
+    }
+  }
+
+  Future<void> _startCheckout() async {
+    if (!widget.loggedIn) {
+      widget.onNeedsLogin();
+      return;
+    }
+
+    final upiCtrl = TextEditingController(text: 'test@upi');
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('UPI Payment'),
+        content: TextField(
+          controller: upiCtrl,
+          decoration: const InputDecoration(
+            labelText: 'UPI ID',
+            hintText: 'username@bank',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Pay Now'),
+          ),
+        ],
+      ),
+    );
+
+    if (approved != true) return;
+    final res = await widget.service.checkout();
+    if (!mounted) return;
+    if (res.ok) {
+      await _fetch();
+      widget.onCartUpdated();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Order placed successfully!')),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res.data['error'] ?? 'Checkout failed')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text(
+          'Shopping Cart',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _items.isEmpty
+          ? _EmptyCartState(onStart: () => Navigator.of(context).pop())
+          : ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                ..._items.map(
+                  (item) => _CartListItem(
+                    item: item,
+                    onRemove: () async {
+                      await widget.service.removeFromCart(
+                        item['id'].toString(),
+                      );
+                      _fetch();
+                      widget.onCartUpdated();
+                    },
+                  ),
+                ),
+                const SizedBox(height: 30),
+                _OrderSummary(items: _items),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _optimizing ? null : _optimizeCart,
+                  icon: _optimizing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_fix_high),
+                  label: const Text('Optimize Cart (Find Cheaper)'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: const Color(0xFFF6C344),
+                    foregroundColor: const Color(0xFF061233),
+                  ),
+                ),
+                if (_suggestions.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Suggestions',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._suggestions
+                      .take(4)
+                      .map(
+                        (item) => _CartSuggestionTile(
+                          item: item,
+                          onAdd: () async {
+                            try {
+                              debugPrint(
+                                '🛒 Adding suggestion to cart: ${item['title']}',
+                              );
+                              final response = await widget.service.addToCart(
+                                item,
+                              );
+
+                              if (response.ok) {
+                                debugPrint('✅ Suggestion added to cart');
+                                await _fetch();
+                                widget.onCartUpdated();
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('✓ Added to cart'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                debugPrint(
+                                  '❌ Failed to add suggestion: ${response.data}',
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Failed: ${response.data['error'] ?? 'Unknown error'}',
+                                      ),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              debugPrint('❌ Add suggestion exception: $e');
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error: $e'),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                ],
+                const SizedBox(height: 16),
+                _CheckoutButton(onTap: _startCheckout),
+              ],
+            ),
+    );
+  }
+}
+
+// --- Orders Screen ---
+class OrdersScreen extends StatefulWidget {
+  final BackendService service;
+  final bool loggedIn;
+  final VoidCallback onNeedsLogin;
+
+  const OrdersScreen({
+    super.key,
+    required this.service,
+    required this.loggedIn,
+    required this.onNeedsLogin,
+  });
+
+  @override
+  State<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends State<OrdersScreen> {
+  List<Map<String, dynamic>> _orders = [];
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loggedIn) _fetch();
+  }
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final res = await widget.service.getOrders();
+      setState(() => _orders = res);
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text(
+          'Order History',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: !widget.loggedIn
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.lock_outline,
+                      size: 56,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Please login to view orders'),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: widget.onNeedsLogin,
+                      child: const Text('Go to Login'),
+                    ),
+                  ],
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tracking purchases.',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF061233),
+                    ),
+                  ),
+                  const Text(
+                    'Manage and track your recent electronics orders.',
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  _RefreshingIndicator(isLoading: _loading),
+                  const SizedBox(height: 32),
+                  Expanded(
+                    child: _loading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _orders.isEmpty
+                        ? const Center(child: Text('No order history found.'))
+                        : ListView.builder(
+                            itemCount: _orders.length,
+                            itemBuilder: (ctx, i) =>
+                                _OrderHistoryCard(order: _orders[i]),
+                          ),
+                  ),
+                  const SizedBox(height: 24),
+                  _FullWidthButton(
+                    label: 'Continue Shopping',
+                    icon: Icons.shopping_bag_outlined,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+// --- Product Details Screen ---
+class ProductDetailsScreen extends StatefulWidget {
+  final Map<String, dynamic> product;
+  final BackendService service;
+  final VoidCallback onCartUpdated;
+  final String? username;
+
+  const ProductDetailsScreen({
+    super.key,
+    required this.product,
+    required this.service,
+    required this.onCartUpdated,
+    this.username,
+  });
+
+  @override
+  State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
+}
+
+class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
+  // final SupabaseSyncService _supabaseSync = SupabaseSyncService.instance;
+  List<Map<String, dynamic>> _priceHistory = [];
+  bool _loadingHistory = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPriceHistory();
+  }
+
+  Future<void> _loadPriceHistory() async {
+    setState(() => _loadingHistory = true);
+    try {
+      final price = double.tryParse('${widget.product['price']}') ?? 100;
+      final data = await widget.service.getPriceHistory(price);
+      final raw = data['history'];
+      if (raw is List) {
+        setState(() {
+          _priceHistory = raw
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Price history error: $e');
+    } finally {
+      setState(() => _loadingHistory = false);
+    }
+  }
+
+  Future<void> _showAiSummary() async {
+    final title = '${widget.product['title'] ?? 'Product'}';
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('AI Summary'),
+        content: FutureBuilder<String>(
+          future: widget.service.getAiSummary(title),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const SizedBox(
+                height: 60,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return Text(snapshot.data ?? 'No summary available.');
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setAlert() async {
+    final currentPrice = double.tryParse('${widget.product['price']}') ?? 0;
+    final targetCtrl = TextEditingController(
+      text: (currentPrice * 0.9).toStringAsFixed(2),
+    );
+    final emailCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set Price Alert'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: targetCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Target Price'),
+            ),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final title = '${widget.product['title'] ?? 'Product'}';
+    final target = double.tryParse(targetCtrl.text) ?? 0;
+    final email = emailCtrl.text.trim();
+
+    final res = await widget.service.setAlert(
+      title: title,
+      targetPrice: target,
+      email: email,
+    );
+    if (res.ok) {
+      // await _supabaseSync.savePriceAlert(
+      //   title: title,
+      //   targetPrice: target,
+      //   email: email,
+      //   username: widget.username,
+      // );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Price alert set')));
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(res.data['error'] ?? 'Failed to set alert')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text(
+          'Product Details',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            onPressed: () {
+              final product = widget.product;
+              final title = '${product['title'] ?? 'Check this out'}';
+              final price = '₹${product['price']}';
+              final text = '$title at $price from Best Buy Finder';
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Shared: $text')));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.favorite_border, color: Colors.red),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Added to Favorites!')),
+              );
+            },
+          ),
+        ],
+        elevation: 0,
+        backgroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                _ProductImageHeader(imageUrl: widget.product['image']),
+                const SizedBox(height: 24),
+                Text(
+                  'BESTBUYFINDER FEATURED',
+                  style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.product['title'] ?? 'Product Name',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF061233),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      '₹${widget.product['price']}',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF061233),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '₹${(double.tryParse('${widget.product['price']}') ?? 0) * 1.5}',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        decoration: TextDecoration.lineThrough,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'SAVE 33%',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _showAiSummary,
+                        icon: const Icon(Icons.smart_toy_outlined),
+                        label: const Text('AI Summary'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _setAlert,
+                        icon: const Icon(Icons.notifications_active_outlined),
+                        label: const Text('Set Alert'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _PriceHistorySection(
+                  history: _priceHistory,
+                  loading: _loadingHistory,
+                ),
+              ],
+            ),
+          ),
+          _DetailsBottomActions(
+            onAdd: () async {
+              try {
+                debugPrint('🛒 Adding to cart: ${widget.product['title']}');
+                final response = await widget.service.addToCart(widget.product);
+
+                if (response.ok) {
+                  debugPrint('✅ Added to cart successfully');
+                  widget.onCartUpdated();
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✓ Added to cart'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  }
+                } else {
+                  debugPrint('❌ Failed to add to cart: ${response.data}');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Failed: ${response.data['error'] ?? 'Unknown error'}',
+                        ),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                }
+              } catch (e) {
+                debugPrint('❌ Add to cart exception: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- UI Components ---
+
+class _DiscoveryHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Icon(Icons.menu, color: Color(0xFF061233)),
+        const Text(
+          'Discover Products',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF061233),
+          ),
+        ),
+        Stack(
+          children: [
+            const Icon(
+              Icons.notifications_none_outlined,
+              color: Color(0xFF061233),
+            ),
+            Positioned(
+              right: 2,
+              top: 2,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+
+  const _SearchBar({
+    required this.controller,
+    this.onChanged,
+    this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FC),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, color: Colors.grey),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              onSubmitted: onSubmitted,
+              decoration: const InputDecoration(
+                hintText: 'Search products, brands, or stores',
+                border: InputBorder.none,
+                hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ),
+          ),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFF197EF1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.tune, color: Colors.white, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryFilters extends StatelessWidget {
+  final String selected;
+  final Function(String) onChanged;
+  const _CategoryFilters({required this.selected, required this.onChanged});
+  @override
+  Widget build(BuildContext context) {
+    final cats = [
+      ('All', 'All'),
+      ('macys', 'Macy\'s'),
+      ('nordstrom', 'Nordstrom'),
+      ('sephora', 'Sephora'),
+      ('barnesandnoble', 'Barnes & Noble'),
+      ('dicks', 'Dick\'s'),
+      ('homedepot', 'Home Depot'),
+      ('chewy', 'Chewy'),
+      ('guitarcenter', 'Guitar Center'),
+      ('staples', 'Staples'),
+      ('amazon', 'Amazon'),
+      ('bestbuy', 'Best Buy'),
+      ('walmart', 'Walmart'),
+      ('ebay', 'eBay'),
+      ('target', 'Target'),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: cats.map((cat) {
+          final value = cat.$1;
+          final label = cat.$2;
+          final isSel = selected == value;
+          return GestureDetector(
+            onTap: () => onChanged(value),
+            child: Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSel
+                    ? const Color(0xFF197EF1)
+                    : const Color(0xFFF7F9FC),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSel ? Colors.white : Colors.grey.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _BestDealCard extends StatelessWidget {
+  final Map<String, dynamic>? product;
+  final VoidCallback onTap;
+  const _BestDealCard({required this.product, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final title =
+        '${product?['title'] ?? product?['name'] ?? 'Top deal today'}';
+    final source = '${product?['source'] ?? 'Featured'}';
+    final price = double.tryParse('${product?['price']}') ?? 0;
+    final oldPrice = price > 0 ? (price * 1.3) : 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Color(0xFF197EF1), size: 18),
+            SizedBox(width: 8),
+            Text(
+              'Best Deal Found',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF061233),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF197EF1), Color(0xFF105BE3)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF197EF1).withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.headphones,
+                    size: 50,
+                    color: Color(0xFF197EF1),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          source.toUpperCase(),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            '₹${price.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            oldPrice > 0
+                                ? '₹${oldPrice.toStringAsFixed(2)}'
+                                : '',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 14,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'View Deal',
+                              style: TextStyle(
+                                color: Color(0xFF197EF1),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DiscoveryProductCard extends StatelessWidget {
+  final Map<String, dynamic> product;
+  final VoidCallback onTap;
+  final VoidCallback onAdd;
+
+  const _DiscoveryProductCard({
+    required this.product,
+    required this.onTap,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade100),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF7F9FC),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                    ),
+                    child: product['image'] != null
+                        ? Image.network(
+                            product['image'],
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.image),
+                          )
+                        : const Icon(Icons.image),
+                  ),
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        product['source']?.toString().toUpperCase() ?? 'STORE',
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 32,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF197EF1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.bolt, color: Colors.white, size: 8),
+                          SizedBox(width: 2),
+                          Text(
+                            'AI PICK',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product['title'] ?? 'Product',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Color(0xFF061233),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '₹${product['price']}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF197EF1),
+                          fontSize: 16,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.history,
+                            color: Colors.grey.shade400,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: onAdd,
+                            child: Icon(
+                              Icons.shopping_cart_outlined,
+                              color: Colors.grey.shade400,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyCartState extends StatelessWidget {
+  final VoidCallback onStart;
+  const _EmptyCartState({required this.onStart});
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE3F2FD),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.remove_shopping_cart_outlined,
+                color: Color(0xFF197EF1),
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Your cart is empty',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF061233),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Looks like you haven\'t added anything to your cart yet. Let\'s find some deals!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 32),
+            _FullWidthButton(label: 'Start Shopping', onTap: onStart),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CartListItem extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final VoidCallback onRemove;
+  const _CartListItem({required this.item, required this.onRemove});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F9FC),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.shopping_bag_outlined, color: Colors.grey),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['title'] ?? 'Item',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '₹${item['price']} x ${item['quantity']}',
+                  style: const TextStyle(
+                    color: Color(0xFF197EF1),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CartSuggestionTile extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final VoidCallback onAdd;
+
+  const _CartSuggestionTile({required this.item, required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${item['title'] ?? item['name'] ?? 'Suggested item'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '₹${item['price'] ?? '-'}',
+                  style: const TextStyle(
+                    color: Color(0xFF197EF1),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add_circle_outline),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderSummary extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+  const _OrderSummary({required this.items});
+  @override
+  Widget build(BuildContext context) {
+    final subtotal = items.fold<double>(
+      0,
+      (prev, element) =>
+          prev +
+          (double.tryParse('${element['price']}') ?? 0) *
+              (int.tryParse('${element['quantity']}') ?? 1),
+    );
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FC),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Order Summary',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 16),
+          _SummaryRow(
+            label: 'Subtotal',
+            val: '₹${subtotal.toStringAsFixed(2)}',
+          ),
+          _SummaryRow(label: 'Shipping', val: '₹0.00'),
+          _SummaryRow(label: 'Estimated Tax', val: '₹0.00'),
+          const Divider(height: 24),
+          _SummaryRow(
+            label: 'Total',
+            val: '₹${subtotal.toStringAsFixed(2)}',
+            isTotal: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  final String label, val;
+  final bool isTotal;
+  const _SummaryRow({
+    required this.label,
+    required this.val,
+    this.isTotal = false,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: isTotal ? Colors.black : Colors.grey,
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 16 : 14,
+            ),
+          ),
+          Text(
+            val,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: isTotal ? 18 : 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckoutButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _CheckoutButton({required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 60,
+        decoration: BoxDecoration(
+          color: const Color(0xFFBBDEFB),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock_outline, color: Color(0xFF197EF1)),
+              SizedBox(width: 8),
+              Text(
+                'Checkout',
+                style: TextStyle(
+                  color: Color(0xFF197EF1),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RefreshingIndicator extends StatelessWidget {
+  final bool isLoading;
+  const _RefreshingIndicator({required this.isLoading});
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: isLoading ? null : 1.0,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Refreshing your order list...',
+              style: TextStyle(color: Color(0xFF197EF1), fontSize: 13),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        LinearProgressIndicator(
+          value: isLoading ? null : 1.0,
+          backgroundColor: Colors.grey.shade100,
+          color: const Color(0xFF197EF1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ],
+    );
+  }
+}
+
+class _OrderHistoryCard extends StatelessWidget {
+  final Map<String, dynamic> order;
+  const _OrderHistoryCard({required this.order});
+  @override
+  Widget build(BuildContext context) {
+    final status = order['status'] ?? 'SHIPPED';
+    final isShipped = status == 'SHIPPED';
+    final isDelivered = status == 'DELIVERED';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.laptop, color: Colors.grey),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Order #BBF-${order['id']}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    _StatusTag(status: status),
+                  ],
+                ),
+                const Text(
+                  'Oct 24, 2023 • 2 Items',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '₹${order['total_amount']}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF061233),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isShipped
+                            ? const Color(0xFF197EF1)
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        isShipped
+                            ? 'Track Order'
+                            : (isDelivered ? 'Details' : 'Reorder'),
+                        style: TextStyle(
+                          color: isShipped ? Colors.white : Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusTag extends StatelessWidget {
+  final String status;
+  const _StatusTag({required this.status});
+  @override
+  Widget build(BuildContext context) {
+    final color = status == 'SHIPPED'
+        ? Colors.blue
+        : (status == 'DELIVERED' ? Colors.grey : Colors.red);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: color,
+          fontSize: 8,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductImageHeader extends StatelessWidget {
+  final String? imageUrl;
+  const _ProductImageHeader({this.imageUrl});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 300,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FC),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Stack(
+        children: [
+          Center(
+            child: imageUrl != null
+                ? Image.network(imageUrl!, fit: BoxFit.contain)
+                : const Icon(Icons.headphones, size: 150, color: Colors.grey),
+          ),
+          Positioned(
+            top: 20,
+            left: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF197EF1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'BEST PRICE FOUND',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceHistorySection extends StatelessWidget {
+  final List<Map<String, dynamic>> history;
+  final bool loading;
+
+  const _PriceHistorySection({required this.history, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    final points = history.isNotEmpty
+        ? history
+        : List<Map<String, dynamic>>.generate(
+            7,
+            (i) => <String, dynamic>{'price': 20 + (i * 8)},
+          );
+
+    final prices = points
+        .map((item) => double.tryParse('${item['price']}') ?? 0)
+        .toList();
+    final maxPrice = prices.isEmpty
+        ? 1
+        : prices.reduce((a, b) => a > b ? a : b);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FC),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'PRICE HISTORY',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
+              ),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.trending_down,
+                    color: Colors.green,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'Lowest in 30 days',
+                    style: TextStyle(color: Colors.green, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (loading)
+            const SizedBox(
+              height: 90,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List<Widget>.generate(prices.length.clamp(1, 7), (idx) {
+                final itemIndex = prices.length <= 7
+                    ? idx
+                    : ((idx + 1) * prices.length / 7).floor() - 1;
+                final safeIndex = itemIndex.clamp(0, prices.length - 1);
+                final normalized =
+                    (prices[safeIndex] / (maxPrice == 0 ? 1 : maxPrice)) * 70;
+                final barHeight = normalized < 10 ? 10.0 : normalized;
+                return _Bar(h: barHeight, isActive: idx == 6);
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  final double h;
+  final bool isActive;
+  const _Bar({required this.h, this.isActive = false});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 35,
+      height: h,
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF197EF1) : const Color(0xFFE3F2FD),
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+}
+
+class _DetailsBottomActions extends StatelessWidget {
+  final VoidCallback onAdd;
+  const _DetailsBottomActions({required this.onAdd});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade100)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: onAdd,
+              child: Container(
+                height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F9FC),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Center(
+                  child: Text(
+                    'ADD TO CART',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Color(0xFF061233),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _FullWidthButton(label: 'BUY NOW', onTap: () {}),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FullWidthButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final VoidCallback onTap;
+  const _FullWidthButton({required this.label, this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 60,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF197EF1), Color(0xFF10BFE3)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF197EF1).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: Colors.white),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ProfileScreen extends StatefulWidget {
+  final BackendService service;
+  final bool loggedIn;
+  final String? username;
+  final Future<void> Function() onAuthUpdated;
+  const ProfileScreen({
+    super.key,
+    required this.service,
+    required this.loggedIn,
+    this.username,
+    required this.onAuthUpdated,
+  });
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final TextEditingController _userCtrl = TextEditingController();
+  final TextEditingController _passCtrl = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLogin = true;
+  bool _loading = false;
+
+  Future<void> _auth() async {
+    setState(() => _loading = true);
+    try {
+      final res = _isLogin
+          ? await widget.service.login(
+              username: _userCtrl.text,
+              password: _passCtrl.text,
+            )
+          : await widget.service.register(
+              username: _userCtrl.text,
+              password: _passCtrl.text,
+            );
+      if (res.ok) {
+        // Save login state for persistent login
+        if (_isLogin) {
+          await _authService.saveLoginState(
+            username: _userCtrl.text,
+            sessionCookie: '',
+          );
+          debugPrint('✅ Login state saved');
+        }
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => SuccessAnimationDialog(
+              isLogin: _isLogin,
+              onComplete: () async {
+                Navigator.of(context).pop();
+                await widget.onAuthUpdated();
+              },
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(res.data['error'] ?? 'Auth failed')),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.loggedIn) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Welcome, ${widget.username}!',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            _FullWidthButton(
+              label: 'Logout',
+              onTap: () async {
+                await widget.service.logout();
+                // Clear persistent login state
+                await _authService.clearLoginState();
+                debugPrint('✅ Login state cleared');
+                await widget.onAuthUpdated();
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          const SizedBox(height: 40),
+          AnimatedAppIcon(),
+          const SizedBox(height: 32),
+          Text(
+            _isLogin ? 'Welcome Back' : 'Create Account',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF061233),
+            ),
+          ),
+          const Text(
+            'Sign in to access your account',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
+          const SizedBox(height: 40),
+          _AuthTextField(
+            label: 'Username',
+            controller: _userCtrl,
+            hint: 'Enter your username',
+            icon: Icons.person_outline,
+          ),
+          const SizedBox(height: 24),
+          _AuthTextField(
+            label: 'Password',
+            controller: _passCtrl,
+            hint: 'Enter your password',
+            icon: Icons.lock_outline,
+            isPassword: true,
+          ),
+          const SizedBox(height: 32),
+          _loading
+              ? const CircularProgressIndicator()
+              : _FullWidthButton(
+                  label: _isLogin ? 'Sign In →' : 'Register Now →',
+                  onTap: _auth,
+                ),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _isLogin
+                    ? 'Don\'t have an account? '
+                    : 'Already have an account? ',
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _isLogin = !_isLogin),
+                child: Text(
+                  _isLogin ? 'Register' : 'Login',
+                  style: const TextStyle(
+                    color: Color(0xFF197EF1),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthTextField extends StatelessWidget {
+  final String label, hint;
+  final TextEditingController controller;
+  final IconData icon;
+  final bool isPassword;
+  const _AuthTextField({
+    required this.label,
+    required this.hint,
+    required this.controller,
+    required this.icon,
+    this.isPassword = false,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F9FC),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: TextField(
+            controller: controller,
+            obscureText: isPassword,
+            decoration: InputDecoration(
+              icon: Icon(icon, color: Colors.grey),
+              border: InputBorder.none,
+              hintText: hint,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
