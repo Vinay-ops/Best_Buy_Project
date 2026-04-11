@@ -76,14 +76,20 @@ class ApiClient {
     } on FormatException catch (e) {
       // Handle non-JSON responses (HTML error pages, plain text, etc.)
       debugPrint('❌ JSON Parse Error: ${e.message}');
-      debugPrint('Response body: ${response.body.substring(0, 200)}');
+      final previewLength = response.body.length > 200
+          ? 200
+          : response.body.length;
+      debugPrint('Response body: ${response.body.substring(0, previewLength)}');
 
+      final rawResponseLength = response.body.length > 500
+          ? 500
+          : response.body.length;
       return ApiResponse(
         statusCode: response.statusCode,
         data: <String, dynamic>{
           'error':
               'Server returned an invalid response. Status: ${response.statusCode}',
-          'raw_response': response.body.substring(0, 500),
+          'raw_response': response.body.substring(0, rawResponseLength),
         },
       );
     } catch (e) {
