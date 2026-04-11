@@ -55,8 +55,10 @@ def get_json(url, params=None, use_ua=True):
         
         if response.status_code == 200:
             return response.json()
-    except Exception:
-        pass
+        else:
+            print(f"❌ API Request failed: {url} | Status: {response.status_code} | Body: {response.text[:100]}")
+    except Exception as e:
+        print(f"❌ API Connection error: {e}")
     return None
 
 def clean_image_url(url):
@@ -104,7 +106,11 @@ def search_serpapi_products(query, source_label="serpapi"):
     """
     Search for products using SerpAPI (Google Shopping).
     """
-    if not SERPAPI_KEY or not query: 
+    if not query:
+        return []
+
+    if not SERPAPI_KEY:
+        print(f"⚠️  SERPAPI_KEY is missing! Search for '{query}' will return no results.")
         return []
     
     # 1. Check cache first to save API credits
@@ -143,14 +149,19 @@ def search_serpapi_products(query, source_label="serpapi"):
         "q": search_query,
         "api_key": SERPAPI_KEY
     }
+    
+    # print(f"🔍 Searching SerpAPI for '{search_query}'...")
     data = get_json(SERPAPI_URL, params, use_ua=False)
     
     if not data:
+        # print(f"❌ No data returned for '{search_query}'")
         return []
 
     # 5. Process results
     results = []
     raw_results = data.get("shopping_results", [])
+    
+    # print(f"✅ Found {len(raw_results)} results for '{search_query}'")
     
     for p in raw_results:
         normalized_product = normalize(p, source_label)

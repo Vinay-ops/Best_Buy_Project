@@ -13,7 +13,7 @@ def test_search():
         print("❌ Error: SERPAPI_KEY not found in .env file.")
         return
 
-    print(f"🔍 Testing SerpAPI with key: {SERPAPI_KEY[:5]}...{SERPAPI_KEY[-5:]}")
+    print(f"Testing SerpAPI with key: {SERPAPI_KEY[:5]}...{SERPAPI_KEY[-5:]}")
 
     url = "https://serpapi.com/search"
     params = {
@@ -27,14 +27,14 @@ def test_search():
         if response.status_code == 200:
             data = response.json()
             results = data.get("shopping_results", [])
-            print(f"✅ Success! Found {len(results)} products.")
+            print(f"Success! Found {len(results)} products.")
             if results:
                 first = results[0]
-                print(f"📱 Sample Product: {first.get('title')} - {first.get('price')}")
+                print(f"Sample Product: {first.get('title')} - {first.get('price')}")
         else:
-            print(f"❌ API Error: {response.status_code} - {response.text}")
+            print(f"API Error: {response.status_code} - {response.text}")
     except Exception as e:
-        print(f"❌ Connection Error: {e}")
+        print(f"Connection Error: {e}")
 
 if __name__ == "__main__":
     test_search()

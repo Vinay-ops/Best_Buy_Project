@@ -29,7 +29,13 @@ def register_routes(app):
     # ---------------------------
     @app.route('/')
     def index(): 
-        return jsonify({"message": "Best Buy Finder API - Running", "status": "ok"}), 200
+        return jsonify({
+            "message": "Best Buy Finder API - Running", 
+            "status": "ok",
+            "debug_endpoints": {
+                "serpapi": "/api/debug/serpapi"
+            }
+        }), 200
 
     @app.route('/products')
     def products_page(): 
@@ -257,14 +263,27 @@ def register_routes(app):
     def debug_serpapi():
         try:
             import os
-            key_exists = bool(os.getenv("SERPAPI_KEY"))
+            from app.api_clients import SERPAPI_KEY
+            
+            # Mask the key for security: "1a4e7...bfd7d"
+            masked_key = f"{SERPAPI_KEY[:5]}...{SERPAPI_KEY[-5:]}" if SERPAPI_KEY else "Not Found"
+            
+            results = search_serpapi_products("iphone")
+            
             return jsonify({
-                "key_loaded": key_exists, 
-                "test_result_count": len(search_serpapi_products("iphone")) if key_exists else 0
+                "key_loaded": bool(SERPAPI_KEY),
+                "key_masked": masked_key,
+                "test_result_count": len(results),
+                "status": "success" if results else "failure",
+                "message": "SerpAPI integration is working!" if results else "SerpAPI key found but no results returned. Check credits or query."
             })
         except Exception as e:
             print(f"❌ Debug serpapi error: {e}")
-            return jsonify({"error": "Failed to debug serpapi", "details": str(e)}), 500
+            return jsonify({
+                "error": "Failed to debug serpapi", 
+                "details": str(e),
+                "status": "error"
+            }), 500
 
     # ---------------------------
     # Cart API
