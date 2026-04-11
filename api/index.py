@@ -9,5 +9,6 @@ app = create_app()
 
 # Vercel Serverless Function Entry Point - Flask app is deployed here
 # The 'app' variable is what Vercel's WSGI handler will use
+# Fixed: Removed duplicate route registration from __init__.py
 if __name__ == "__main__":
     app.run()
