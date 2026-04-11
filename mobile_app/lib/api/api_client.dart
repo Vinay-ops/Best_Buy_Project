@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
@@ -13,7 +14,9 @@ class ApiClient {
   String? _cookie;
 
   Future<ApiResponse> get(String path, {Map<String, String>? query}) async {
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}$path').replace(queryParameters: query);
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}$path',
+    ).replace(queryParameters: query);
     final response = await _client.get(uri, headers: _headers());
     _captureCookie(response);
     return _toApiResponse(response);
@@ -31,9 +34,7 @@ class ApiClient {
   }
 
   Map<String, String> _headers() {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
+    final headers = <String, String>{'Content-Type': 'application/json'};
 
     if (_cookie != null && _cookie!.isNotEmpty) {
       headers['Cookie'] = _cookie!;
@@ -52,27 +53,51 @@ class ApiClient {
   }
 
   ApiResponse _toApiResponse(http.Response response) {
-    final dynamic payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+    try {
+      // If response is empty, return empty JSON
+      if (response.body.isEmpty) {
+        return ApiResponse(
+          statusCode: response.statusCode,
+          data: <String, dynamic>{},
+        );
+      }
 
-    if (payload is Map<String, dynamic>) {
+      // Try to decode as JSON
+      final dynamic payload = jsonDecode(response.body);
+
+      if (payload is Map<String, dynamic>) {
+        return ApiResponse(statusCode: response.statusCode, data: payload);
+      }
+
       return ApiResponse(
         statusCode: response.statusCode,
-        data: payload,
+        data: <String, dynamic>{'data': payload},
+      );
+    } on FormatException catch (e) {
+      // Handle non-JSON responses (HTML error pages, plain text, etc.)
+      debugPrint('❌ JSON Parse Error: ${e.message}');
+      debugPrint('Response body: ${response.body.substring(0, 200)}');
+
+      return ApiResponse(
+        statusCode: response.statusCode,
+        data: <String, dynamic>{
+          'error':
+              'Server returned an invalid response. Status: ${response.statusCode}',
+          'raw_response': response.body.substring(0, 500),
+        },
+      );
+    } catch (e) {
+      debugPrint('❌ Unexpected error parsing response: $e');
+      return ApiResponse(
+        statusCode: response.statusCode,
+        data: <String, dynamic>{'error': 'Failed to parse server response: $e'},
       );
     }
-
-    return ApiResponse(
-      statusCode: response.statusCode,
-      data: <String, dynamic>{'data': payload},
-    );
   }
 }
 
 class ApiResponse {
-  const ApiResponse({
-    required this.statusCode,
-    required this.data,
-  });
+  const ApiResponse({required this.statusCode, required this.data});
 
   final int statusCode;
   final Map<String, dynamic> data;

@@ -92,8 +92,28 @@ class BackendService {
   }
 
   Future<Map<String, dynamic>> getCart() async {
-    final response = await _client.get('/api/cart');
-    return response.data;
+    try {
+      final response = await _client.get('/api/cart');
+
+      // Handle error responses
+      if (!response.ok) {
+        debugPrint('❌ Cart API Error: ${response.data}');
+        return {
+          'cart': [],
+          'total_amount': 0,
+          'error': response.data['error'] ?? 'Failed to load cart',
+        };
+      }
+
+      // Safe access to data
+      final cart = response.data['cart'] ?? [];
+      final total = response.data['total_amount'] ?? 0;
+
+      return {'cart': _mapList(cart), 'total_amount': total};
+    } catch (e) {
+      debugPrint('❌ getCart exception: $e');
+      return {'cart': [], 'total_amount': 0, 'error': 'Cart fetch failed'};
+    }
   }
 
   Future<ApiResponse> removeFromCart(String itemId) {
@@ -114,8 +134,27 @@ class BackendService {
   }
 
   Future<List<Map<String, dynamic>>> getOrders() async {
-    final response = await _client.get('/api/orders');
-    return _mapList(response.data['orders']);
+    try {
+      final response = await _client.get('/api/orders');
+
+      // Handle error responses (401, 500, etc.)
+      if (!response.ok) {
+        debugPrint(
+          '❌ Orders API Error (${response.statusCode}): ${response.data}',
+        );
+        if (response.statusCode == 401) {
+          debugPrint('🔐 Not logged in');
+        }
+        return [];
+      }
+
+      // Safe access to orders
+      final orders = response.data['orders'] ?? [];
+      return _mapList(orders);
+    } catch (e) {
+      debugPrint('❌ getOrders exception: $e');
+      return [];
+    }
   }
 
   Future<Map<String, dynamic>> getPriceHistory(double price) async {

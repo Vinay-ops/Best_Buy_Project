@@ -1500,7 +1500,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               TextButton(
                 onPressed: () {
-                  DefaultTabController.of(context)?.animateTo(1);
+                  DefaultTabController.of(context).animateTo(1);
                 },
                 child: const Text(
                   'Browse All',
@@ -2704,7 +2704,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen> {
                   ),
                 ],
               );
-            }).toList(),
+            }),
             const SizedBox(height: 32),
             // Contact Support Button
             SizedBox(
