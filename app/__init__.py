@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 import os
 from app.routes import register_routes
@@ -24,6 +24,21 @@ def create_app():
     
     # Register all API routes
     register_routes(app)
+    
+    # Global error handlers to return JSON instead of HTML
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({"error": "Endpoint not found"}), 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        print(f"❌ Server Error: {error}")
+        return jsonify({"error": "Internal server error", "details": str(error)}), 500
+    
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        print(f"❌ Unhandled Exception: {e}")
+        return jsonify({"error": "An error occurred", "details": str(e)}), 500
     
     # Health check endpoint
     @app.route('/health')

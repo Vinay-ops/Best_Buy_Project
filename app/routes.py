@@ -60,56 +60,72 @@ def register_routes(app):
     # ---------------------------
     @app.route('/api/register', methods=['POST'])
     def register():
-        data = request.get_json() or {}
-        username = data.get("username", "").strip()
-        password = data.get("password", "")
+        try:
+            data = request.get_json() or {}
+            username = data.get("username", "").strip()
+            password = data.get("password", "")
 
-        # Validation
-        if not username or len(username) < 3:
-            return jsonify({"error": "Username must be at least 3 chars"}), 400
-        if not password or len(password) < 6:
-            return jsonify({"error": "Password must be at least 6 chars"}), 400
-        
-        # Check if user exists
-        if get_user_by_username(username):
-            return jsonify({"error": "User already exists"}), 400
+            # Validation
+            if not username or len(username) < 3:
+                return jsonify({"error": "Username must be at least 3 chars"}), 400
+            if not password or len(password) < 6:
+                return jsonify({"error": "Password must be at least 6 chars"}), 400
+            
+            # Check if user exists
+            if get_user_by_username(username):
+                return jsonify({"error": "User already exists"}), 400
 
-        # Create user
-        hashed_password = generate_password_hash(password)
-        if create_user(username, hashed_password):
-            return jsonify({"message": "Registration successful"}), 201
-        else:
-            return jsonify({"error": "Registration failed"}), 500
+            # Create user
+            hashed_password = generate_password_hash(password)
+            if create_user(username, hashed_password):
+                return jsonify({"message": "Registration successful"}), 201
+            else:
+                return jsonify({"error": "Registration failed"}), 500
+        except Exception as e:
+            print(f"❌ Registration error: {e}")
+            return jsonify({"error": "Registration failed", "details": str(e)}), 500
 
     @app.route('/api/login', methods=['POST'])
     def login():
-        data = request.get_json() or {}
-        username = data.get("username", "").strip()
-        password = data.get("password", "")
+        try:
+            data = request.get_json() or {}
+            username = data.get("username", "").strip()
+            password = data.get("password", "")
 
-        user = get_user_by_username(username)
-        
-        if user and check_password_hash(user["password_hash"], password):
-            # Save user info in session (cookies)
-            session["user_id"] = user["id"]
-            session["username"] = user["username"]
-            session["logged_in"] = True
-            return jsonify({"message": "Login successful", "user": user})
-        
-        return jsonify({"error": "Invalid username or password"}), 401
+            user = get_user_by_username(username)
+            
+            if user and check_password_hash(user["password_hash"], password):
+                # Save user info in session (cookies)
+                session["user_id"] = user["id"]
+                session["username"] = user["username"]
+                session["logged_in"] = True
+                return jsonify({"message": "Login successful", "user": user})
+            
+            return jsonify({"error": "Invalid username or password"}), 401
+        except Exception as e:
+            print(f"❌ Login error: {e}")
+            return jsonify({"error": "Login failed", "details": str(e)}), 500
 
     @app.route('/api/logout', methods=['POST'])
     def logout():
-        session.clear()
-        return jsonify({"message": "Logged out successfully"})
+        try:
+            session.clear()
+            return jsonify({"message": "Logged out successfully"})
+        except Exception as e:
+            print(f"❌ Logout error: {e}")
+            return jsonify({"error": "Logout failed", "details": str(e)}), 500
 
     @app.route('/api/auth/status')
     def auth_status():
         """Check if user is currently logged in."""
-        return jsonify({
-            "logged_in": session.get("logged_in", False), 
-            "user": {"username": session.get("username")}
-        })
+        try:
+            return jsonify({
+                "logged_in": session.get("logged_in", False), 
+                "user": {"username": session.get("username")}
+            })
+        except Exception as e:
+            print(f"❌ Auth status error: {e}")
+            return jsonify({"error": "Failed to check auth status", "details": str(e)}), 500
 
     # ---------------------------
     # Product API
@@ -120,257 +136,301 @@ def register_routes(app):
         Fetch products from ALL stores simultaneously using parallel processing.
         This prevents the page from loading slowly.
         """
-        # List of functions to call
-        fetch_functions = [
-            fetch_featured_products, 
-            fetch_macys_products, 
-            fetch_nordstrom_products,
-            fetch_sephora_products,
-            fetch_barnes_products,
-            fetch_dicks_products,
-            fetch_homedepot_products,
-            fetch_chewy_products,
-            fetch_guitarcenter_products,
-            fetch_staples_products
-        ]
-        
-        all_products = []
-        
-        # 'ThreadPoolExecutor' runs these functions at the same time (parallel)
-        # instead of one by one. This is much faster!
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            # Start all tasks
-            futures = [executor.submit(func) for func in fetch_functions]
+        try:
+            # List of functions to call
+            fetch_functions = [
+                fetch_featured_products, 
+                fetch_macys_products, 
+                fetch_nordstrom_products,
+                fetch_sephora_products,
+                fetch_barnes_products,
+                fetch_dicks_products,
+                fetch_homedepot_products,
+                fetch_chewy_products,
+                fetch_guitarcenter_products,
+                fetch_staples_products
+            ]
             
-            # Collect results as they finish
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    products = future.result()
-                    if products:
-                        all_products.extend(products)
-                except Exception as e:
-                    print(f"Error fetching data: {e}")
+            all_products = []
+            
+            # 'ThreadPoolExecutor' runs these functions at the same time (parallel)
+            # instead of one by one. This is much faster!
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                # Start all tasks
+                futures = [executor.submit(func) for func in fetch_functions]
                 
-        return jsonify({"products": all_products})
+                # Collect results as they finish
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        products = future.result()
+                        if products:
+                            all_products.extend(products)
+                    except Exception as e:
+                        print(f"Error fetching data: {e}")
+                    
+            return jsonify({"products": all_products})
+        except Exception as e:
+            print(f"❌ Get products error: {e}")
+            return jsonify({"error": "Failed to fetch products", "details": str(e)}), 500
 
     @app.route('/api/products/<source>')
     def get_products_by_source(source):
-        src = source.lower().strip()
-        
-        # Map source names to functions
-        source_map = {
-            "amazon": fetch_amazon_products,
-            "bestbuy": fetch_bestbuy_products,
-            "walmart": fetch_walmart_products,
-            "ebay": fetch_ebay_products,
-            "target": fetch_target_products,
-            "newegg": fetch_newegg_products,
-            "macys": fetch_macys_products,
-            "nordstrom": fetch_nordstrom_products,
-            "sephora": fetch_sephora_products,
-            "barnesandnoble": fetch_barnes_products,
-            "dicks": fetch_dicks_products,
-            "homedepot": fetch_homedepot_products,
-            "chewy": fetch_chewy_products,
-            "guitarcenter": fetch_guitarcenter_products,
-            "staples": fetch_staples_products,
-            "serpapi": fetch_featured_products
-        }
-        
-        if src not in source_map:
-            return jsonify({"error": "Unknown source"}), 400
+        try:
+            src = source.lower().strip()
             
-        products = source_map[src]()
-        return jsonify({"source": src, "total": len(products), "products": products})
+            # Map source names to functions
+            source_map = {
+                "amazon": fetch_amazon_products,
+                "bestbuy": fetch_bestbuy_products,
+                "walmart": fetch_walmart_products,
+                "ebay": fetch_ebay_products,
+                "target": fetch_target_products,
+                "newegg": fetch_newegg_products,
+                "macys": fetch_macys_products,
+                "nordstrom": fetch_nordstrom_products,
+                "sephora": fetch_sephora_products,
+                "barnesandnoble": fetch_barnes_products,
+                "dicks": fetch_dicks_products,
+                "homedepot": fetch_homedepot_products,
+                "chewy": fetch_chewy_products,
+                "guitarcenter": fetch_guitarcenter_products,
+                "staples": fetch_staples_products,
+                "serpapi": fetch_featured_products
+            }
+            
+            if src not in source_map:
+                return jsonify({"error": "Unknown source"}), 400
+                
+            products = source_map[src]()
+            return jsonify({"source": src, "total": len(products), "products": products})
+        except Exception as e:
+            print(f"❌ Get products by source error: {e}")
+            return jsonify({"error": "Failed to fetch products", "details": str(e)}), 500
 
     @app.route('/api/search')
     def search_products():
-        query = request.args.get('q', '').strip()
-        if not query:
-            return jsonify({"error": "Missing search query"}), 400
+        try:
+            query = request.args.get('q', '').strip()
+            if not query:
+                return jsonify({"error": "Missing search query"}), 400
+                
+            # Define stores to check explicitly for comparison
+            stores = ["serpapi", "amazon", "bestbuy", "walmart", "ebay", "target"]
+            results = []
+
+            # Helper function for parallel execution
+            def fetch_store_results(store):
+                try:
+                    # search_serpapi_products handles caching and 'site:' filtering
+                    return search_serpapi_products(query, store)
+                except Exception as e:
+                    print(f"Error searching {store}: {e}")
+                    return []
+
+            # Run searches in parallel to be fast
+            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                futures = [executor.submit(fetch_store_results, store) for store in stores]
+                for future in concurrent.futures.as_completed(futures):
+                    store_results = future.result()
+                    if store_results:
+                        results.extend(store_results)
             
-        # Define stores to check explicitly for comparison
-        stores = ["serpapi", "amazon", "bestbuy", "walmart", "ebay", "target"]
-        results = []
+            # Remove duplicates based on ID or strict title matching
+            seen = set()
+            unique_results = []
+            for p in results:
+                # Create a unique key (id is usually good, but let's be safe)
+                key = p.get('id')
+                if key not in seen:
+                    seen.add(key)
+                    unique_results.append(p)
 
-        # Helper function for parallel execution
-        def fetch_store_results(store):
-            try:
-                # search_serpapi_products handles caching and 'site:' filtering
-                return search_serpapi_products(query, store)
-            except Exception as e:
-                print(f"Error searching {store}: {e}")
-                return []
-
-        # Run searches in parallel to be fast
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-            futures = [executor.submit(fetch_store_results, store) for store in stores]
-            for future in concurrent.futures.as_completed(futures):
-                store_results = future.result()
-                if store_results:
-                    results.extend(store_results)
-        
-        # Remove duplicates based on ID or strict title matching
-        seen = set()
-        unique_results = []
-        for p in results:
-            # Create a unique key (id is usually good, but let's be safe)
-            key = p.get('id')
-            if key not in seen:
-                seen.add(key)
-                unique_results.append(p)
-
-        # Sort by price (lowest first) to show best deals at top
-        sorted_results = sorted(unique_results, key=lambda x: x.get('price', float('inf')))
-        
-        return jsonify({"query": query, "total": len(sorted_results), "products": sorted_results})
+            # Sort by price (lowest first) to show best deals at top
+            sorted_results = sorted(unique_results, key=lambda x: x.get('price', float('inf')))
+            
+            return jsonify({"query": query, "total": len(sorted_results), "products": sorted_results})
+        except Exception as e:
+            print(f"\u274c Search error: {e}")
+            return jsonify({"error": "Search failed", "details": str(e)}), 500
 
     @app.route('/api/debug/serpapi')
     def debug_serpapi():
-        import os
-        key_exists = bool(os.getenv("SERPAPI_KEY"))
-        return jsonify({
-            "key_loaded": key_exists, 
-            "test_result_count": len(search_serpapi_products("iphone")) if key_exists else 0
-        })
+        try:
+            import os
+            key_exists = bool(os.getenv("SERPAPI_KEY"))
+            return jsonify({
+                "key_loaded": key_exists, 
+                "test_result_count": len(search_serpapi_products("iphone")) if key_exists else 0
+            })
+        except Exception as e:
+            print(f"❌ Debug serpapi error: {e}")
+            return jsonify({"error": "Failed to debug serpapi", "details": str(e)}), 500
 
     # ---------------------------
     # Cart API
     # ---------------------------
     @app.route('/api/cart/add', methods=['POST'])
     def add_to_cart():
-        data = request.get_json() or {}
-        product_id = str(data.get("id"))
-        price = data.get("price")
-        
-        if not product_id or not price:
-            return jsonify({"error": "Invalid product data"}), 400
-        
-        cart = session.get("cart", [])
-        
-        # Check if item already in cart
-        found = False
-        for item in cart:
-            if item["id"] == product_id:
-                item["quantity"] += data.get("quantity", 1)
-                found = True
-                break
-        
-        if not found:
-            cart.append({
-                "id": product_id, 
-                "title": data.get("title"), 
-                "price": float(price), 
-                "quantity": int(data.get("quantity", 1))
-            })
-        
-        session["cart"] = cart
-        return jsonify({"message": "Added to cart", "cart": cart})
+        try:
+            data = request.get_json() or {}
+            product_id = str(data.get("id"))
+            price = data.get("price")
+            
+            if not product_id or not price:
+                return jsonify({"error": "Invalid product data"}), 400
+            
+            cart = session.get("cart", [])
+            
+            # Check if item already in cart
+            found = False
+            for item in cart:
+                if item["id"] == product_id:
+                    item["quantity"] += data.get("quantity", 1)
+                    found = True
+                    break
+            
+            if not found:
+                cart.append({
+                    "id": product_id, 
+                    "title": data.get("title"), 
+                    "price": float(price), 
+                    "quantity": int(data.get("quantity", 1))
+                })
+            
+            session["cart"] = cart
+            return jsonify({"message": "Added to cart", "cart": cart})
+        except Exception as e:
+            print(f"❌ Add to cart error: {e}")
+            return jsonify({"error": "Failed to add to cart", "details": str(e)}), 500
 
     @app.route('/api/cart')
     def get_cart():
-        cart = session.get("cart", [])
-        total = sum(item["price"] * item["quantity"] for item in cart)
-        return jsonify({"cart": cart, "total_amount": round(total, 2)})
+        try:
+            cart = session.get("cart", [])
+            total = sum(item["price"] * item["quantity"] for item in cart)
+            return jsonify({"cart": cart, "total_amount": round(total, 2)})
+        except Exception as e:
+            print(f"❌ Cart error: {e}")
+            return jsonify({"error": "Failed to fetch cart", "details": str(e)}), 500
 
     @app.route('/api/cart/remove', methods=['POST'])
     def remove_from_cart():
-        data = request.get_json() or {}
-        product_id = str(data.get("id"))
-        
-        if not product_id:
-            return jsonify({"error": "Missing product ID"}), 400
+        try:
+            data = request.get_json() or {}
+            product_id = str(data.get("id"))
             
-        # Keep items that don't match the ID
-        cart = session.get("cart", [])
-        session["cart"] = [item for item in cart if item["id"] != product_id]
-        
-        return jsonify({"message": "Removed from cart", "cart": session["cart"]})
+            if not product_id:
+                return jsonify({"error": "Missing product ID"}), 400
+                
+            # Keep items that don't match the ID
+            cart = session.get("cart", [])
+            session["cart"] = [item for item in cart if item["id"] != product_id]
+            
+            return jsonify({"message": "Removed from cart", "cart": session["cart"]})
+        except Exception as e:
+            print(f"❌ Remove from cart error: {e}")
+            return jsonify({"error": "Failed to remove from cart", "details": str(e)}), 500
 
     @app.route('/api/cart/clear', methods=['POST'])
     def clear_cart():
-        session["cart"] = []
-        return jsonify({"message": "Cart cleared"})
+        try:
+            session["cart"] = []
+            return jsonify({"message": "Cart cleared"})
+        except Exception as e:
+            print(f"❌ Clear cart error: {e}")
+            return jsonify({"error": "Failed to clear cart", "details": str(e)}), 500
 
     @app.route('/api/cart/optimize')
     def optimize_cart():
         """Simulates finding a cheaper total price AND suggests related products."""
-        cart = session.get("cart", [])
-        if not cart:
-            return jsonify({"error": "Cart is empty"}), 400
-        
-        # Simulate a 5-15% discount
-        original_total = sum(item["price"] * item["quantity"] for item in cart)
-        discount_factor = 0.85 + (random.random() * 0.1) # 0.85 to 0.95
-        new_total = round(original_total * discount_factor, 2)
-
-        # --- Generate Suggestions ---
-        suggestions = []
         try:
-            # Select up to 3 items from the cart to base suggestions on
-            target_items = cart[:3]
+            cart = session.get("cart", [])
+            if not cart:
+                return jsonify({"error": "Cart is empty"}), 400
             
-            def get_suggestions_for_item(item):
-                try:
-                    title = item.get("title", "")
-                    # Use the first 3 words to get a broad category match
-                    search_term = " ".join(title.split()[:3])
-                    results = search_serpapi_products(search_term, "serpapi")
-                    # Return top 2 distinct items
-                    return [p for p in results if p.get("id") != item.get("id")][:2]
-                except:
-                    return []
+            # Simulate a 5-15% discount
+            original_total = sum(item["price"] * item["quantity"] for item in cart)
+            discount_factor = 0.85 + (random.random() * 0.1) # 0.85 to 0.95
+            new_total = round(original_total * discount_factor, 2)
 
-            # Run searches in parallel
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                futures = [executor.submit(get_suggestions_for_item, item) for item in target_items]
-                for future in concurrent.futures.as_completed(futures):
-                    suggestions.extend(future.result())
+            # --- Generate Suggestions ---
+            suggestions = []
+            try:
+                # Select up to 3 items from the cart to base suggestions on
+                target_items = cart[:3]
+                
+                def get_suggestions_for_item(item):
+                    try:
+                        title = item.get("title", "")
+                        # Use the first 3 words to get a broad category match
+                        search_term = " ".join(title.split()[:3])
+                        results = search_serpapi_products(search_term, "serpapi")
+                        # Return top 2 distinct items
+                        return [p for p in results if p.get("id") != item.get("id")][:2]
+                    except:
+                        return []
+
+                # Run searches in parallel
+                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                    futures = [executor.submit(get_suggestions_for_item, item) for item in target_items]
+                    for future in concurrent.futures.as_completed(futures):
+                        suggestions.extend(future.result())
+                
+                # Shuffle and limit to 6 items to keep it fresh
+                random.shuffle(suggestions)
+                suggestions = suggestions[:6]
+                
+            except Exception as e:
+                print(f"Suggestion error: {e}")
             
-            # Shuffle and limit to 6 items to keep it fresh
-            random.shuffle(suggestions)
-            suggestions = suggestions[:6]
-            
+            return jsonify({
+                "original_total": original_total,
+                "new_total": new_total,
+                "savings": round(original_total - new_total, 2),
+                "message": "We found a better deal by combining sellers!",
+                "suggestions": suggestions
+            })
         except Exception as e:
-            print(f"Suggestion error: {e}")
-        
-        return jsonify({
-            "original_total": original_total,
-            "new_total": new_total,
-            "savings": round(original_total - new_total, 2),
-            "message": "We found a better deal by combining sellers!",
-            "suggestions": suggestions
-        })
+            print(f"\u274c Optimize cart error: {e}")
+            return jsonify({"error": "Failed to optimize cart", "details": str(e)}), 500
 
     # ---------------------------
     # Order & Checkout API
     # ---------------------------
     @app.route('/api/checkout', methods=['POST'])
     def checkout():
-        if not session.get("logged_in"):
-            return jsonify({"error": "Please login first"}), 401
+        try:
+            if not session.get("logged_in"):
+                return jsonify({"error": "Please login first"}), 401
+                
+            cart = session.get("cart", [])
+            if not cart:
+                return jsonify({"error": "Cart is empty"}), 400
+                
+            user_id = session["user_id"]
+            total_amount = sum(item["price"] * item["quantity"] for item in cart)
             
-        cart = session.get("cart", [])
-        if not cart:
-            return jsonify({"error": "Cart is empty"}), 400
+            order_id, error_msg = create_order(user_id, total_amount, cart)
+            if order_id:
+                session["cart"] = [] # Clear cart
+                return jsonify({"message": "Order placed successfully!", "order_id": order_id}), 201
             
-        user_id = session["user_id"]
-        total_amount = sum(item["price"] * item["quantity"] for item in cart)
-        
-        order_id, error_msg = create_order(user_id, total_amount, cart)
-        if order_id:
-            session["cart"] = [] # Clear cart
-            return jsonify({"message": "Order placed successfully!", "order_id": order_id}), 201
-        
-        return jsonify({"error": f"Failed to place order: {error_msg}"}), 500
+            return jsonify({"error": f"Failed to place order: {error_msg}"}), 500
+        except Exception as e:
+            print(f"❌ Checkout error: {e}")
+            return jsonify({"error": "Failed to process checkout", "details": str(e)}), 500
 
     @app.route('/api/orders')
     def get_orders():
-        if not session.get("logged_in"):
-            return jsonify({"error": "Please login first"}), 401
-            
-        orders = get_user_orders(session["user_id"])
-        return jsonify({"orders": orders}), 200
+        try:
+            if not session.get("logged_in"):
+                return jsonify({"error": "Please login first"}), 401
+                
+            orders = get_user_orders(session["user_id"])
+            return jsonify({"orders": orders}), 200
+        except Exception as e:
+            print(f"❌ Orders error: {e}")
+            return jsonify({"error": "Failed to fetch orders", "details": str(e)}), 500
 
     # ---------------------------
     # Extra Features (Price History, Alerts, AI)
