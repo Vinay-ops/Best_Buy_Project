@@ -128,7 +128,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      DiscoverScreen(
+      HomeScreen(
         service: _service,
         onCartUpdated: _refreshCartCount,
         username: _username,
@@ -1275,6 +1275,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 }
               }
             },
+            product: widget.product,
+            service: widget.service,
+            onCartUpdated: widget.onCartUpdated,
           ),
         ],
       ),
@@ -1284,6 +1287,423 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
 // --- UI Components ---
 
+// --- HOME SCREEN ---
+class HomeScreen extends StatefulWidget {
+  final BackendService service;
+  final VoidCallback onCartUpdated;
+  final String? username;
+
+  const HomeScreen({
+    super.key,
+    required this.service,
+    required this.onCartUpdated,
+    this.username,
+  });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<Map<String, dynamic>> _featuredProducts = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchFeatured();
+  }
+
+  Future<void> _fetchFeatured() async {
+    setState(() => _loading = true);
+    try {
+      debugPrint('🏠 Fetching featured products for home...');
+      final res = await widget.service.getProducts();
+      debugPrint('🏠 Fetched ${res.length} products');
+      setState(() {
+        _featuredProducts = res.take(6).toList();
+      });
+    } catch (e) {
+      debugPrint('❌ Home fetch error: $e');
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        children: [
+          // --- Welcome Header ---
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Welcome back!',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.username ?? 'Best Buy Finder',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF061233),
+                    ),
+                  ),
+                ],
+              ),
+              Stack(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF197EF1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_outlined,
+                      color: Color(0xFF197EF1),
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // --- Promotional Banner ---
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF197EF1), Color(0xFF105BE3)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Special Offer',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Get up to 40% off on electronics',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Shop Now',
+                    style: TextStyle(
+                      color: Color(0xFF197EF1),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // --- Quick Categories ---
+          const Text(
+            'Shop by Category',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF061233),
+            ),
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            children: [
+              _CategoryQuickCard(
+                icon: Icons.laptop_mac,
+                label: 'Laptops',
+                onTap: () => Navigator.pop(context),
+              ),
+              _CategoryQuickCard(
+                icon: Icons.phone_android,
+                label: 'Phones',
+                onTap: () => Navigator.pop(context),
+              ),
+              _CategoryQuickCard(
+                icon: Icons.headphones,
+                label: 'Audio',
+                onTap: () => Navigator.pop(context),
+              ),
+              _CategoryQuickCard(
+                icon: Icons.videogame_asset,
+                label: 'Gaming',
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+
+          // --- Featured Section ---
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Featured Deals',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF061233),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  DefaultTabController.of(context)?.animateTo(1);
+                },
+                child: const Text(
+                  'Browse All',
+                  style: TextStyle(color: Color(0xFF197EF1)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _featuredProducts.length,
+                  itemBuilder: (ctx, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _HomeProductCard(
+                      product: _featuredProducts[i],
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProductDetailsScreen(
+                              product: _featuredProducts[i],
+                              service: widget.service,
+                              onCartUpdated: widget.onCartUpdated,
+                              username: widget.username,
+                            ),
+                          ),
+                        );
+                      },
+                      onAdd: () async {
+                        try {
+                          final response = await widget.service.addToCart(
+                            _featuredProducts[i],
+                          );
+                          if (response.ok) {
+                            widget.onCartUpdated();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('✓ Added to cart'),
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          debugPrint('Error: $e');
+                        }
+                      },
+                    ),
+                  ),
+                ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryQuickCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _CategoryQuickCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 32, color: const Color(0xFF197EF1)),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF061233),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeProductCard extends StatelessWidget {
+  final Map<String, dynamic> product;
+  final VoidCallback onTap;
+  final VoidCallback onAdd;
+
+  const _HomeProductCard({
+    required this.product,
+    required this.onTap,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: product['image'] != null
+                  ? Image.network(product['image'], fit: BoxFit.cover)
+                  : const Icon(Icons.image, color: Colors.grey),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product['title'] ?? 'Product',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF061233),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '₹${product['price']}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF197EF1),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 36,
+                    child: ElevatedButton.icon(
+                      onPressed: onAdd,
+                      icon: const Icon(Icons.add_shopping_cart, size: 14),
+                      label: const Text('Add'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF197EF1),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DiscoveryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1292,7 +1712,7 @@ class _DiscoveryHeader extends StatelessWidget {
       children: [
         const Icon(Icons.menu, color: Color(0xFF061233)),
         const Text(
-          'Discover Products',
+          'Search Products',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -2036,6 +2456,304 @@ class _RefreshingIndicator extends StatelessWidget {
   }
 }
 
+// --- Track Order Screen ---
+class TrackOrderScreen extends StatefulWidget {
+  final Map<String, dynamic> order;
+
+  const TrackOrderScreen({super.key, required this.order});
+
+  @override
+  State<TrackOrderScreen> createState() => _TrackOrderScreenState();
+}
+
+class _TrackOrderScreenState extends State<TrackOrderScreen> {
+  late List<TrackingStep> _steps;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeTrackingSteps();
+  }
+
+  void _initializeTrackingSteps() {
+    final status = widget.order['status'] ?? 'SHIPPED';
+    _steps = [
+      TrackingStep(
+        title: 'Order Placed',
+        description: 'Your order has been confirmed',
+        date: 'Oct 24, 2023',
+        completed: true,
+        active: true,
+      ),
+      TrackingStep(
+        title: 'Processing',
+        description: 'We\'re packing your items',
+        date: 'Oct 24, 2023',
+        completed: true,
+        active: status == 'PROCESSING',
+      ),
+      TrackingStep(
+        title: 'Shipped',
+        description: 'On the way to you',
+        date: 'Oct 25, 2023',
+        completed: status == 'SHIPPED' || status == 'DELIVERED',
+        active: status == 'SHIPPED',
+      ),
+      TrackingStep(
+        title: 'Delivered',
+        description: 'Delivered to your address',
+        date: 'Oct 27, 2023',
+        completed: status == 'DELIVERED',
+        active: false,
+      ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.order['total_amount'] ?? 0;
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text(
+          'Order Tracking',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Order Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade100),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order #BBF-${widget.order['id']}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF061233),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Placed on Oct 24, 2023',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      _StatusTag(status: widget.order['status'] ?? 'SHIPPED'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(color: Colors.grey.shade100),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Order Total',
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                      ),
+                      Text(
+                        '₹$total',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xFF061233),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            // Tracking Timeline
+            const Text(
+              'Tracking Details',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF061233),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ..._steps.asMap().entries.map((entry) {
+              final index = entry.key;
+              final step = entry.value;
+              final isLast = index == _steps.length - 1;
+
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Column(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: step.completed
+                                  ? const Color(0xFF197EF1)
+                                  : (step.active
+                                        ? const Color(
+                                            0xFF197EF1,
+                                          ).withOpacity(0.2)
+                                        : Colors.grey.shade200),
+                              border: Border.all(
+                                color: step.active
+                                    ? const Color(0xFF197EF1)
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: Center(
+                              child: step.completed
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 20,
+                                    )
+                                  : (step.active
+                                        ? Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: const BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Color(0xFF197EF1),
+                                            ),
+                                          )
+                                        : const SizedBox()),
+                            ),
+                          ),
+                          if (!isLast)
+                            Container(
+                              width: 2,
+                              height: 60,
+                              color: step.completed
+                                  ? const Color(0xFF197EF1)
+                                  : Colors.grey.shade200,
+                              margin: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              step.title,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: step.active
+                                    ? const Color(0xFF197EF1)
+                                    : const Color(0xFF061233),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              step.description,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              step.date,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }).toList(),
+            const SizedBox(height: 32),
+            // Contact Support Button
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        '📧 Email: vbhogal5@gmail.com | 📞 +91 8112006',
+                      ),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.headset_mic_outlined),
+                label: const Text('Contact Support'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF197EF1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TrackingStep {
+  final String title;
+  final String description;
+  final String date;
+  final bool completed;
+  final bool active;
+
+  TrackingStep({
+    required this.title,
+    required this.description,
+    required this.date,
+    required this.completed,
+    required this.active,
+  });
+}
+
 class _OrderHistoryCard extends StatelessWidget {
   final Map<String, dynamic> order;
   const _OrderHistoryCard({required this.order});
@@ -2044,83 +2762,114 @@ class _OrderHistoryCard extends StatelessWidget {
     final status = order['status'] ?? 'SHIPPED';
     final isShipped = status == 'SHIPPED';
     final isDelivered = status == 'DELIVERED';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: isShipped
+          ? () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => TrackOrderScreen(order: order)),
+            )
+          : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            child: const Icon(Icons.laptop, color: Colors.grey),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Order #BBF-${order['id']}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    _StatusTag(status: status),
-                  ],
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.laptop, color: Colors.grey),
                 ),
-                const Text(
-                  'Oct 24, 2023 • 2 Items',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '₹${order['total_amount']}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF061233),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Order #BBF-${order['id']}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _StatusTag(status: status),
+                        ],
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                      const SizedBox(height: 4),
+                      Text(
+                        'Oct 24, 2023 • 2 Items',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
-                      decoration: BoxDecoration(
-                        color: isShipped
-                            ? const Color(0xFF197EF1)
-                            : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        isShipped
-                            ? 'Track Order'
-                            : (isDelivered ? 'Details' : 'Reorder'),
-                        style: TextStyle(
-                          color: isShipped ? Colors.white : Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                      const SizedBox(height: 8),
+                      Text(
+                        '₹${order['total_amount']}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF061233),
+                          fontSize: 16,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton(
+                onPressed: isShipped
+                    ? () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TrackOrderScreen(order: order),
+                        ),
+                      )
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isShipped
+                      ? const Color(0xFF197EF1)
+                      : Colors.grey.shade100,
+                  disabledBackgroundColor: Colors.grey.shade100,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  isShipped
+                      ? 'Track Order'
+                      : (isDelivered ? 'View Details' : 'Reorder'),
+                  style: TextStyle(
+                    color: isShipped ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2305,7 +3054,17 @@ class _Bar extends StatelessWidget {
 
 class _DetailsBottomActions extends StatelessWidget {
   final VoidCallback onAdd;
-  const _DetailsBottomActions({required this.onAdd});
+  final Map<String, dynamic>? product;
+  final BackendService? service;
+  final VoidCallback? onCartUpdated;
+
+  const _DetailsBottomActions({
+    required this.onAdd,
+    this.product,
+    this.service,
+    this.onCartUpdated,
+  });
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -2340,7 +3099,69 @@ class _DetailsBottomActions extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: _FullWidthButton(label: 'BUY NOW', onTap: () {}),
+            child: _FullWidthButton(
+              label: 'BUY NOW',
+              onTap: () async {
+                if (product != null &&
+                    service != null &&
+                    onCartUpdated != null) {
+                  try {
+                    debugPrint('🛍️ Direct purchase: ${product!['title']}');
+                    final response = await service!.addToCart(product!);
+
+                    if (response.ok) {
+                      debugPrint('✅ Added to cart for checkout');
+                      onCartUpdated!();
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            '✓ Item added. Proceeding to checkout...',
+                          ),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      // Navigate to checkout screen
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        if (Navigator.canPop(context)) {
+                          Navigator.of(
+                            context,
+                          ).pushNamed('/checkout').catchError((_) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Checkout screen not available'),
+                              ),
+                            );
+                          });
+                        }
+                      });
+                    } else {
+                      debugPrint('❌ Failed to add to cart: ${response.data}');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Failed: ${response.data['error'] ?? 'Unknown error'}',
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    debugPrint('❌ Buy now exception: $e');
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Buy now feature is initializing...'),
+                    ),
+                  );
+                }
+              },
+            ),
           ),
         ],
       ),
@@ -2477,7 +3298,7 @@ class _FullWidthButton extends StatelessWidget {
 // ============ WISHLIST SCREEN ============
 class WishlistScreen extends StatefulWidget {
   final BackendService service;
-  const WishlistScreen({required this.service});
+  const WishlistScreen({super.key, required this.service});
   @override
   State<WishlistScreen> createState() => _WishlistScreenState();
 }
@@ -2603,13 +3424,13 @@ class _WishlistScreenState extends State<WishlistScreen> {
 // ============ ADDRESSES SCREEN ============
 class AddressesScreen extends StatefulWidget {
   final BackendService service;
-  const AddressesScreen({required this.service});
+  const AddressesScreen({super.key, required this.service});
   @override
   State<AddressesScreen> createState() => _AddressesScreenState();
 }
 
 class _AddressesScreenState extends State<AddressesScreen> {
-  List<Map<String, dynamic>> _addresses = [
+  final List<Map<String, dynamic>> _addresses = [
     {
       'id': '1',
       'name': 'Home',
@@ -2754,6 +3575,8 @@ class _AddressesScreenState extends State<AddressesScreen> {
 
 // ============ NOTIFICATIONS SETTINGS DIALOG ============
 class NotificationsSettingsDialog extends StatefulWidget {
+  const NotificationsSettingsDialog({super.key});
+
   @override
   State<NotificationsSettingsDialog> createState() =>
       _NotificationsSettingsDialogState();
@@ -2844,6 +3667,8 @@ class _NotificationToggle extends StatelessWidget {
 
 // ============ LANGUAGE SETTINGS DIALOG ============
 class LanguageSettingsDialog extends StatefulWidget {
+  const LanguageSettingsDialog({super.key});
+
   @override
   State<LanguageSettingsDialog> createState() => _LanguageSettingsDialogState();
 }
@@ -2915,7 +3740,7 @@ class HelpSupportScreen extends StatelessWidget {
     },
   ];
 
-  HelpSupportScreen({Key? key}) : super(key: key);
+  HelpSupportScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -2967,7 +3792,7 @@ class HelpSupportScreen extends StatelessWidget {
                       ],
                     ),
                   );
-                }).toList(),
+                }),
                 const SizedBox(height: 24),
                 const Padding(
                   padding: EdgeInsets.all(8),
@@ -2983,13 +3808,24 @@ class HelpSupportScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Email: support@bestbuyfinder.com',
-                          style: TextStyle(fontSize: 14),
+                          '📧 Email: vbhogal5@gmail.com',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Phone: 1-800-BBF-FINDS',
-                          style: TextStyle(fontSize: 14),
+                          '📞 Phone: +91 8112006',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '⏰ Available: 9AM - 9PM (Monday - Friday)',
+                          style: TextStyle(fontSize: 13, color: Colors.grey),
                         ),
                         const SizedBox(height: 12),
                         _FullWidthButton(
@@ -3142,7 +3978,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${widget.username}@bestbuyfinder.app',
+                        'vbhogal5@gmail.com',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '☎ +91 8112006',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.white.withOpacity(0.8),
@@ -3231,7 +4075,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _ProfileMenuTile(
                   icon: Icons.help_outline,
                   title: 'Help & Support',
-                  subtitle: 'FAQs and contact us',
+                  subtitle: 'vbhogal5@gmail.com | +91 8112006',
                   onTap: () => _showHelpSupport(),
                 ),
                 _ProfileMenuTile(

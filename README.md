@@ -239,6 +239,38 @@ python run.py
 
 ---
 
+## 📱 Flutter Mobile App (Android + iOS)
+
+A Flutter app is now included inside this repository at `mobile_app/`.
+
+### Prerequisites
+
+- Flutter SDK installed (`flutter --version`)
+- Android Studio (for Android emulator)
+- Xcode (for iOS simulator, macOS only)
+
+### Run the app
+
+```bash
+cd mobile_app
+flutter pub get
+flutter run
+```
+
+### API connection
+
+- Mobile app config file: `mobile_app/lib/config/app_config.dart`
+- Android emulator uses: `http://10.0.2.2:5000`
+- iOS simulator uses: `http://localhost:5000`
+
+Make sure your Flask backend is running first:
+
+```bash
+python run.py
+```
+
+---
+
 ## 🌐 Deployment
 
 ### Deploy to Vercel (Recommended)

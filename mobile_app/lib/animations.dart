@@ -4,7 +4,7 @@ class SuccessAnimationDialog extends StatefulWidget {
   final bool isLogin;
   final VoidCallback onComplete;
 
-  const SuccessAnimationDialog({
+  const SuccessAnimationDialog({super.key, 
     required this.isLogin,
     required this.onComplete,
   });
@@ -116,6 +116,8 @@ class _SuccessAnimationDialogState extends State<SuccessAnimationDialog>
 }
 
 class AnimatedCheckmark extends StatefulWidget {
+  const AnimatedCheckmark({super.key});
+
   @override
   State<AnimatedCheckmark> createState() => _AnimatedCheckmarkState();
 }
@@ -174,6 +176,8 @@ class _AnimatedCheckmarkState extends State<AnimatedCheckmark>
 }
 
 class AnimatedAppIcon extends StatefulWidget {
+  const AnimatedAppIcon({super.key});
+
   @override
   State<AnimatedAppIcon> createState() => _AnimatedAppIconState();
 }

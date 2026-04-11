@@ -91,7 +91,7 @@ def normalize(product_data, source):
         # 3. Return standardized dictionary
         return {
             "id": product_id,
-            "name": title, 
+            "title": title,
             "price": round(price * USD_TO_INR, 2),  # Convert to INR
             "category": "General",
             "image": clean_image_url(image), 
