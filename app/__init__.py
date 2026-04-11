@@ -45,8 +45,4 @@ def create_app():
     def health():
         return {'status': 'ok'}, 200
     
-    @app.route('/')
-    def index():
-        return {'message': 'Best Buy Finder API - Running on Vercel'}, 200
-    
     return app
