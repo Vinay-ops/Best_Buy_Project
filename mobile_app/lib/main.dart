@@ -3,6 +3,7 @@ import 'api/api_client.dart';
 import 'api/backend_service.dart';
 import 'animations.dart';
 import 'services/auth_service.dart';
+import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +26,8 @@ class BestBuyFinderApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Inter',
       ),
-      home: const AppShell(),
+      home: const SplashScreen(),
+      routes: {'/home': (context) => const AppShell()},
     );
   }
 }
