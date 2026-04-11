@@ -1,4 +1,4 @@
-from flask import jsonify, request, session
+from flask import jsonify, request, session, render_template
 from werkzeug.security import generate_password_hash, check_password_hash
 import concurrent.futures
 import random
@@ -29,37 +29,31 @@ def register_routes(app):
     # ---------------------------
     @app.route('/')
     def index(): 
-        return jsonify({
-            "message": "Best Buy Finder API - Running", 
-            "status": "ok",
-            "debug_endpoints": {
-                "serpapi": "/api/debug/serpapi"
-            }
-        }), 200
+        return render_template('index.html')
 
     @app.route('/products')
     def products_page(): 
-        return jsonify({"message": "Products page (use /api/products)"}), 200
+        return render_template('products.html')
 
     @app.route('/login')
     def login_page(): 
-        return jsonify({"message": "Login page (use /api/login)"}), 200
+        return render_template('login.html')
 
     @app.route('/register')
     def register_page(): 
-        return jsonify({"message": "Register page (use /api/register)"}), 200
+        return render_template('register.html')
 
     @app.route('/cart')
     def cart_page(): 
-        return jsonify({"message": "Cart page (use /api/cart)"}), 200
+        return render_template('cart.html')
 
     @app.route('/orders')
     def orders_page(): 
-        return jsonify({"message": "Orders page (use /api/orders)"}), 200
+        return render_template('orders.html')
 
     @app.route('/about')
     def about_page(): 
-        return jsonify({"message": "About page"}), 200
+        return render_template('about.html')
 
     # ---------------------------
     # User Authentication API

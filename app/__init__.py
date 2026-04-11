@@ -6,8 +6,12 @@ from app.database import init_database
 
 def create_app():
     """Create and configure the Flask app for both local and Vercel deployment"""
-    # Define template and static folders (will be None on Vercel, which is fine for API-only)
-    app = Flask(__name__, template_folder=None, static_folder=None)
+    # Define absolute paths for template and static folders
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    template_dir = os.path.join(base_dir, 'templates')
+    static_dir = os.path.join(base_dir, 'static')
+    
+    app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
     
     # Allow CORS for all domains - needed for Flutter app to access API
     CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": "*"}})
