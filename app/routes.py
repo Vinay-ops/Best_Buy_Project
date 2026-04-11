@@ -131,44 +131,20 @@ def register_routes(app):
     # Product API
     # ---------------------------
     @app.route('/api/products')
-    def get_products():
-        """
-        Fetch products from ALL stores simultaneously using parallel processing.
-        This prevents the page from loading slowly.
-        """
+    def get_products_api():
         try:
-            # List of functions to call
-            fetch_functions = [
-                fetch_featured_products, 
-                fetch_macys_products, 
-                fetch_nordstrom_products,
-                fetch_sephora_products,
-                fetch_barnes_products,
-                fetch_dicks_products,
-                fetch_homedepot_products,
-                fetch_chewy_products,
-                fetch_guitarcenter_products,
-                fetch_staples_products
-            ]
+            # For the main 'featured' list, we combine multiple sources
+            # search_serpapi_products handles caching internally
+            products = fetch_featured_products()
             
-            all_products = []
+            # If no featured products, try a generic search
+            if not products:
+                products = search_serpapi_products("trending electronics", "serpapi")
             
-            # 'ThreadPoolExecutor' runs these functions at the same time (parallel)
-            # instead of one by one. This is much faster!
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                # Start all tasks
-                futures = [executor.submit(func) for func in fetch_functions]
+            # Log the request and response for debugging
+            print(f"📦 API Request: /api/products | Found: {len(products)} products")
                 
-                # Collect results as they finish
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        products = future.result()
-                        if products:
-                            all_products.extend(products)
-                    except Exception as e:
-                        print(f"Error fetching data: {e}")
-                    
-            return jsonify({"products": all_products})
+            return jsonify({"source": "featured", "total": len(products), "products": products})
         except Exception as e:
             print(f"❌ Get products error: {e}")
             return jsonify({"error": "Failed to fetch products", "details": str(e)}), 500
