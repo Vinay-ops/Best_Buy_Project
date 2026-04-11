@@ -7,8 +7,8 @@ class AppConfig {
   /// - Use '10.0.2.2' for Android Emulators
   /// - Use your local IP (e.g., '192.168.x.x') for Physical Devices
   static String get apiBaseUrl {
-    // Use Vercel URL for both development and production
-    return 'https://best-buy-project.vercel.app';
+    // Use the updated production Vercel URL
+    return 'https://best-buy-project-4t7mmv0zj-vinay-ops-projects.vercel.app';
   }
 
   // Pass these at build/run time:
