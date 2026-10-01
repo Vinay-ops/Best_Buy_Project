@@ -14,7 +14,7 @@ const containerVariants = {
 
 const photoVariants = (rotate, x, y) => ({
   hidden: { opacity: 0, rotate: 0, x: 0, y: 0, scale: 0.8 },
-  visible: { 
+  visible: {
     opacity: 1, rotate, x, y, scale: 1,
     transition: { type: 'spring', damping: 20, stiffness: 100 }
   }
@@ -68,22 +68,22 @@ export default function HomePage() {
           </motion.div>
 
           <motion.h1 className="hero-giant-text" variants={textVariants}>
-            <span>PERFORMANCE</span><br/>
-            <span style={{ marginLeft: '10%' }}>PACK</span>
+            <span>Compare Save</span><br />
+            <span style={{ marginLeft: '10%' }}>Repeat</span>
           </motion.h1>
         </motion.div>
 
         <motion.div className="supply-hero-bottom" variants={fadeUpVariants}>
           <div className="mono uppercase tracking-wider text-xs text-gray" style={{ maxWidth: 200, lineHeight: 1.5 }}>
-            Find the best price<br/>
-            across 40+ retailers<br/>
+            Find the best price<br />
+            across 40+ retailers<br />
             powered by best buy finder
           </div>
-          <motion.a 
+          <motion.a
             href="#shop"
             className="mono uppercase tracking-wider text-xs text-gray"
             style={{ textDecoration: 'none', cursor: 'pointer' }}
-            animate={{ x: [0, 5, 0] }} 
+            animate={{ x: [0, 5, 0] }}
             transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
             onClick={(e) => {
               e.preventDefault();
@@ -110,8 +110,8 @@ export default function HomePage() {
       <section className="supply-light-bg">
         <div className="supply-grid-3">
           {products.map((p, i) => (
-            <motion.div 
-              key={p.id || i} 
+            <motion.div
+              key={p.id || i}
               className="supply-grid-card"
               initial="hidden"
               whileInView="visible"
@@ -122,7 +122,7 @@ export default function HomePage() {
               }}
             >
               {i === 0 && <div className="badge-sold-out">SOLD OUT</div>}
-              
+
               <div className="card-image-wrap">
                 {p.image ? <img src={p.image} alt={p.name} /> : <div className="placeholder-img"></div>}
               </div>
@@ -134,27 +134,27 @@ export default function HomePage() {
             </motion.div>
           ))}
           {/* Placeholders if not enough products */}
-          {products.length < 3 && Array.from({length: 3 - products.length}).map((_, i) => (
-             <motion.div 
-               key={'ph'+i} 
-               className="supply-grid-card"
-               initial={{ opacity: 0 }}
-               whileInView={{ opacity: 1 }}
-               viewport={{ once: true }}
-             >
-                <div className="card-image-wrap"><div className="placeholder-img"></div></div>
-                <div className="card-footer">
-                  <div className="card-title">Shopify Item</div>
-                  <div className="card-price">USD $129.00</div>
-                </div>
-             </motion.div>
+          {products.length < 3 && Array.from({ length: 3 - products.length }).map((_, i) => (
+            <motion.div
+              key={'ph' + i}
+              className="supply-grid-card"
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+            >
+              <div className="card-image-wrap"><div className="placeholder-img"></div></div>
+              <div className="card-footer">
+                <div className="card-title">Shopify Item</div>
+                <div className="card-price">USD $129.00</div>
+              </div>
+            </motion.div>
           ))}
         </div>
       </section>
 
       {/* ── FOOTER NEWSLETTER (Dark Mode) ─────────────────────────── */}
       <section className="supply-dark-footer">
-        <motion.div 
+        <motion.div
           className="footer-left"
           initial="hidden"
           whileInView="visible"
@@ -164,7 +164,7 @@ export default function HomePage() {
           <h2>Save with Best Buy Finder.</h2>
           <p>Join 50,000+ smart shoppers. Get price drop alerts free.</p>
         </motion.div>
-        <motion.div 
+        <motion.div
           className="footer-right"
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
