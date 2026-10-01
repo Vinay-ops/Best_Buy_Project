@@ -67,9 +67,8 @@ export default function HomePage() {
             <img src="https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&q=80&w=400" alt="Apparel" />
           </motion.div>
 
-          <motion.h1 className="hero-giant-text" variants={textVariants}>
-            <span>Compare Save</span><br />
-            <span style={{ marginLeft: '10%' }}>Repeat</span>
+          <motion.h1 className="hero-tagline" variants={textVariants}>
+            Never overpay again.
           </motion.h1>
         </motion.div>
 

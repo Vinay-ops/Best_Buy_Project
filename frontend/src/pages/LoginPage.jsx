@@ -26,9 +26,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+    <div className="auth-split">
       {/* Left panel - dark brand */}
-      <div style={{ background: '#000', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '60px 60px' }}>
+      <div className="auth-split__brand">
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)' }}>
           Best Buy Finder
         </div>
@@ -49,8 +49,8 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right panel - form */}
-      <div style={{ background: '#FAFAFA', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px' }}>
+      {/* Right panel - form (light: colour restated on .auth-split__panel) */}
+      <div className="auth-split__panel">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}

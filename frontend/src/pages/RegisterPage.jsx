@@ -29,9 +29,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+    <div className="auth-split">
       {/* Left panel */}
-      <div style={{ background: '#000', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '60px 60px' }}>
+      <div className="auth-split__brand">
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)' }}>
           Best Buy Finder
         </div>
@@ -52,8 +52,8 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Right panel */}
-      <div style={{ background: '#FAFAFA', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px' }}>
+      {/* Right panel (light: colour restated on .auth-split__panel) */}
+      <div className="auth-split__panel">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
