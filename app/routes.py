@@ -27,33 +27,8 @@ def register_routes(app):
     # ---------------------------
     # Frontend Pages (HTML)
     # ---------------------------
-    @app.route('/')
-    def index(): 
-        return render_template('index.html')
-
-    @app.route('/products')
-    def products_page(): 
-        return render_template('products.html')
-
-    @app.route('/login')
-    def login_page(): 
-        return render_template('login.html')
-
-    @app.route('/register')
-    def register_page(): 
-        return render_template('register.html')
-
-    @app.route('/cart')
-    def cart_page(): 
-        return render_template('cart.html')
-
-    @app.route('/orders')
-    def orders_page(): 
-        return render_template('orders.html')
-
-    @app.route('/about')
-    def about_page(): 
-        return render_template('about.html')
+    # The frontend is now handled by the separate React app running on port 3000.
+    # The Flask app only serves /api/* endpoints.
 
     # ---------------------------
     # User Authentication API
