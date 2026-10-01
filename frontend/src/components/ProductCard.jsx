@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useCart } from '../context/CartContext'
 import { useToast } from '../context/ToastContext'
+
+const INR = (amount) => `₹${parseFloat(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 import { motion } from 'framer-motion'
 
 export default function ProductCard({ product, index = 0 }) {
@@ -48,7 +50,7 @@ export default function ProductCard({ product, index = 0 }) {
       <div className="card-footer" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div className="card-title">{name}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="card-price">USD ${price.toFixed(2)}</div>
+          <div className="card-price">{INR(price)}</div>
           <div className="card-price text-gray" style={{ fontSize: '0.6875rem' }}>{product.source || 'Supply'}</div>
         </div>
       </div>
