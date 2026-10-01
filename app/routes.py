@@ -237,10 +237,10 @@ def register_routes(app):
     def add_to_cart():
         try:
             data = request.get_json() or {}
-            product_id = str(data.get("id"))
+            product_id = str(data.get("id", ""))
             price = data.get("price")
             
-            if not product_id or not price:
+            if not product_id or price is None:
                 return jsonify({"error": "Invalid product data"}), 400
             
             cart = session.get("cart", [])
@@ -249,19 +249,23 @@ def register_routes(app):
             found = False
             for item in cart:
                 if item["id"] == product_id:
-                    item["quantity"] += data.get("quantity", 1)
+                    item["quantity"] += int(data.get("quantity", 1))
                     found = True
                     break
             
             if not found:
                 cart.append({
-                    "id": product_id, 
-                    "title": data.get("title"), 
-                    "price": float(price), 
+                    "id": product_id,
+                    "name": data.get("name") or data.get("title") or "Unknown",
+                    "title": data.get("title") or data.get("name") or "Unknown",
+                    "price": float(price),
+                    "image": data.get("image", ""),
+                    "source": data.get("source", ""),
                     "quantity": int(data.get("quantity", 1))
                 })
             
             session["cart"] = cart
+            session.modified = True
             return jsonify({"message": "Added to cart", "cart": cart})
         except Exception as e:
             print(f"❌ Add to cart error: {e}")
