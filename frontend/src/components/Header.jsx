@@ -34,8 +34,8 @@ export default function Header() {
           <span style={{
             background: '#fff', color: '#000', width: 24, height: 24, display: 'flex',
             alignItems: 'center', justifyContent: 'center', borderRadius: 4, fontSize: '0.75rem', fontWeight: 900, flexShrink: 0
-          }}>S</span>
-          <span style={{ fontWeight: 700, fontSize: '1.125rem' }}>shopify supply</span>
+          }}>BB</span>
+          <span style={{ fontWeight: 700, fontSize: '1.125rem' }}>Best Buy Finder</span>
         </Link>
 
         {/* Right */}

@@ -6,8 +6,8 @@ export default function Footer() {
     <footer className="supply-dark-footer" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 60, borderBottom: '1px solid var(--c-border-dark)' }}>
         <div className="footer-left">
-          <h2>Want more Supply?</h2>
-          <p>Join our community and save 15% off your next order.</p>
+          <h2>Save more with Best Buy Finder.</h2>
+          <p>Join 50,000+ smart shoppers. Get price drop alerts for free.</p>
         </div>
         <div className="footer-right">
           <form className="footer-form" onSubmit={e => e.preventDefault()}>
@@ -33,7 +33,7 @@ export default function Footer() {
         </div>
         
         <div style={{ textAlign: 'right', color: 'var(--c-gray)' }}>
-          <div>© 2026 Shopify Supply Theme Replica.</div>
+          <div>© 2026 Best Buy Finder · All rights reserved.</div>
           <div style={{ marginTop: 8 }}>Built for extreme utility.</div>
         </div>
       </div>

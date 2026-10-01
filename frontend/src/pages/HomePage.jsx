@@ -48,9 +48,9 @@ export default function HomePage() {
       {/* ── HERO COLLAGE (Dark Mode) ──────────────────────────────── */}
       <section className="supply-hero">
         <motion.div className="supply-hero-top" variants={fadeUpVariants}>
-          <span className="mono uppercase tracking-wider text-xs text-gray">Shopify Supply</span>
-          <span className="mono uppercase tracking-wider text-xs text-gray">Apparel Collection</span>
-          <span className="mono uppercase tracking-wider text-xs text-gray">High-Performance Merch Built For Builders</span>
+          <span className="mono uppercase tracking-wider text-xs text-gray">Best Buy Finder</span>
+          <span className="mono uppercase tracking-wider text-xs text-gray">Best Prices. Every Day.</span>
+          <span className="mono uppercase tracking-wider text-xs text-gray">AI-Powered Price Comparison Engine</span>
         </motion.div>
 
         <motion.div className="collage-container" variants={containerVariants}>
@@ -75,9 +75,9 @@ export default function HomePage() {
 
         <motion.div className="supply-hero-bottom" variants={fadeUpVariants}>
           <div className="mono uppercase tracking-wider text-xs text-gray" style={{ maxWidth: 200, lineHeight: 1.5 }}>
-            Explore the latest drop<br/>
-            in our 3d shop<br/>
-            powered by shopify
+            Find the best price<br/>
+            across 40+ retailers<br/>
+            powered by best buy finder
           </div>
           <motion.a 
             href="#shop"
@@ -161,8 +161,8 @@ export default function HomePage() {
           viewport={{ once: true }}
           variants={fadeUpVariants}
         >
-          <h2>Want more Supply?</h2>
-          <p>Join our community and save 15% off your next order.</p>
+          <h2>Save with Best Buy Finder.</h2>
+          <p>Join 50,000+ smart shoppers. Get price drop alerts free.</p>
         </motion.div>
         <motion.div 
           className="footer-right"
