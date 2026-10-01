@@ -47,24 +47,36 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    var SHAPES = {
-        headphones: '<path d="M16 42v-6a16 16 0 0 1 32 0v6" fill="none" stroke="#fff" stroke-width="3"/><rect x="10" y="40" width="9" height="18" rx="3" fill="#fff"/><rect x="45" y="40" width="9" height="18" rx="3" fill="#fff"/>',
-        shoe: '<path d="M6 46h42v-8c0-4-3-6-7-7l-10-3-6-12-6 4 3 12-9-2-4-6-4 2v10z" fill="#fff"/><path d="M6 50h42" stroke="#c8ff00" stroke-width="2"/>',
-        laptop: '<rect x="8" y="14" width="44" height="28" fill="none" stroke="#fff" stroke-width="3"/><rect x="13" y="19" width="34" height="18" fill="#9d4edd"/><path d="M4 46h52l-4 6H8z" fill="#fff"/>',
-        phone: '<rect x="20" y="6" width="24" height="48" rx="4" fill="none" stroke="#fff" stroke-width="3"/><rect x="24" y="12" width="16" height="32" fill="#c8ff00"/><circle cx="32" cy="49" r="2" fill="#fff"/>',
-        watch: '<rect x="24" y="4" width="16" height="12" fill="#fff"/><rect x="24" y="44" width="16" height="12" fill="#fff"/><rect x="16" y="12" width="32" height="36" rx="8" fill="none" stroke="#fff" stroke-width="3"/><circle cx="32" cy="30" r="7" fill="#9d4edd"/>',
-        camera: '<rect x="6" y="16" width="52" height="36" rx="4" fill="#fff"/><circle cx="32" cy="34" r="12" fill="#000"/><circle cx="32" cy="34" r="6" fill="#c8ff00"/><rect x="22" y="10" width="20" height="8" fill="#fff"/>',
-        monitor: '<rect x="6" y="10" width="52" height="34" fill="none" stroke="#fff" stroke-width="3"/><rect x="11" y="15" width="42" height="24" fill="#9d4edd"/><path d="M26 44h12v8h8v3H18v-3h8z" fill="#fff"/>',
-        keyboard: '<rect x="4" y="18" width="56" height="28" rx="3" fill="#fff"/><g fill="#000"><rect x="9" y="23" width="6" height="6"/><rect x="18" y="23" width="6" height="6"/><rect x="27" y="23" width="6" height="6"/><rect x="36" y="23" width="6" height="6"/><rect x="45" y="23" width="10" height="6"/><rect x="9" y="32" width="46" height="5"/></g><rect x="9" y="40" width="24" height="4" fill="#c8ff00"/>'
-    };
 
-    function svg(shape) {
-        return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
-            (SHAPES[shape] || SHAPES.headphones) + '</svg>';
-    }
-    document.querySelectorAll(".hero__cut").forEach(function (el) {
-        el.innerHTML = "<img src='" + svg(el.dataset.shape) + "' style='width:70%;height:70%;object-fit:contain;' />";
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const response = await fetch('/api/products');
+            const data = await response.json();
+            
+            if (response.ok && data.products && data.products.length >= 3) {
+                const cuts = document.querySelectorAll('.hero__cut');
+                for (let i = 0; i < 3 && i < cuts.length; i++) {
+                    const product = data.products[i];
+                    cuts[i].innerHTML = <img src='' style='width:100%;height:100%;object-fit:cover;transition: transform 0.5s;' alt='' />;
+                }
+            } else {
+                // Fallback to SVGs if API fails or doesn't have enough products
+                const fallbackImages = [
+                    'https://placehold.co/300x300/000/fff?text=Deal+1',
+                    'https://placehold.co/300x300/9d4edd/fff?text=Deal+2',
+                    'https://placehold.co/300x300/c8ff00/000?text=Deal+3'
+                ];
+                document.querySelectorAll('.hero__cut').forEach((el, index) => {
+                    if(index < fallbackImages.length) {
+                        el.innerHTML = <img src='' style='width:100%;height:100%;object-fit:cover;' />;
+                    }
+                });
+            }
+        } catch(e) {
+            console.error(e);
+        }
     });
 </script>
+
 {% endblock %}
