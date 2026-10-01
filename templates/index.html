@@ -3,96 +3,68 @@
 {% block title %}Best Buy Finder - Home{% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
-<section class="hero-section text-center position-relative overflow-hidden">
-    <div class="container position-relative z-1">
-        <div class="row justify-content-center">
-            <div class="col-lg-8 animate-fade-in">
-                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-2 mb-3 fw-bold">
-                    <i class="fas fa-star me-1"></i> #1 Price Comparison Tool
-                </span>
-                <h1 class="hero-title mb-4">Find the Best Deals <br>Across the Web</h1>
-                <p class="lead text-muted mb-5 px-lg-5">
-                    Compare prices, track availability, and save money on your favorite electronics, gadgets, and more.
-                    We aggregate the best deals so you don't have to.
-                </p>
-                <div class="d-flex justify-content-center gap-3 animate-slide-in-up">
-                    <a href="/products" class="btn btn-primary-custom btn-lg">
-                        <i class="fas fa-search me-2"></i>Start Browsing
-                    </a>
-                    {% if not session.get('user_id') %}
-                    <a href="/register" class="btn btn-outline-dark btn-lg rounded-pill px-4">
-                        Join Now
-                    </a>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Abstract Shapes Background -->
-    <div class="position-absolute top-0 start-0 w-100 h-100 z-0 opacity-50" style="pointer-events: none;">
-        <div class="position-absolute top-10 start-0 translate-middle rounded-circle bg-primary opacity-10" style="width: 300px; height: 300px; filter: blur(50px);"></div>
-        <div class="position-absolute bottom-0 end-0 translate-middle rounded-circle bg-info opacity-10" style="width: 400px; height: 400px; filter: blur(60px);"></div>
-    </div>
-</section>
+<section class="hero">
+    <h1 class="hero__lines display">
+        <span class="hero__line hero__line--1 mega">Find The</span>
+        <span class="hero__line hero__line--2 mega">Lowest</span>
+        <span class="hero__line hero__line--3 mega">Price Anywhere</span>
+    </h1>
 
-<!-- Features Section -->
-<section class="py-5">
-    <div class="container">
-        <div class="row g-4">
-            <div class="col-md-4 animate-slide-left delay-100">
-                <div class="card h-100 border-0 shadow-sm p-4 text-center feature-card hover-lift">
-                    <div class="d-flex justify-content-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-bolt"></i>
-                        </div>
-                    </div>
-                    <h3 class="h4 fw-bold mb-3">Real-Time Updates</h3>
-                    <p class="text-muted">Get the latest prices and stock availability instantly. Our crawlers work 24/7.</p>
-                </div>
-            </div>
-            <div class="col-md-4 animate-fade-in delay-200">
-                <div class="card h-100 border-0 shadow-sm p-4 text-center feature-card hover-lift">
-                    <div class="d-flex justify-content-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-tags"></i>
-                        </div>
-                    </div>
-                    <h3 class="h4 fw-bold mb-3">Best Price Guarantee</h3>
-                    <p class="text-muted">We compare multiple sources to ensure you never overpay for your tech gear.</p>
-                </div>
-            </div>
-            <div class="col-md-4 animate-slide-right delay-300">
-                <div class="card h-100 border-0 shadow-sm p-4 text-center feature-card hover-lift">
-                    <div class="d-flex justify-content-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-shield-alt"></i>
-                        </div>
-                    </div>
-                    <h3 class="h4 fw-bold mb-3">Secure Shopping</h3>
-                    <p class="text-muted">Your data is protected. Shop with confidence using our secure platform.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
+    <!-- Floating product cutouts -->
+    <div class="hero__cut hero__cut--a" aria-hidden="true" data-shape="headphones"></div>
+    <div class="hero__cut hero__cut--b" aria-hidden="true" data-shape="shoe"></div>
+    <div class="hero__cut hero__cut--c" aria-hidden="true" data-shape="laptop"></div>
 
-<!-- CTA Section -->
-<section class="py-5 my-5">
-    <div class="container">
-        <div class="card bg-dark text-white border-0 rounded-4 overflow-hidden shadow-lg animate-fade-in">
-            <div class="card-body p-5 text-center position-relative">
-                <div class="position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(45deg, rgba(13,110,253,0.9), rgba(13,202,240,0.9)); z-index: 0;"></div>
-                <div class="position-relative z-1">
-                    <h2 class="display-5 fw-bold mb-4">Ready to Save Big?</h2>
-                    <p class="lead mb-4 opacity-90">Join thousands of smart shoppers finding the best deals every day.</p>
-                    <a href="/products" class="btn btn-light btn-lg rounded-pill px-5 fw-bold text-primary hover-scale">
-                        Shop Now
-                    </a>
-                </div>
-            </div>
+    <div class="hero__foot">
+        <div class="hero__cell">
+            <span class="meta">[01] / INDEX</span>
+            <p>Every listing crawled hourly across 40+ retailers, marketplaces and clearance channels.</p>
+        </div>
+        <div class="hero__cell">
+            <span class="meta">[02] / VERIFY</span>
+            <p>Shipping, tax and stock status checked before a price is ever shown to you.</p>
+        </div>
+        <div class="hero__cell">
+            <span class="meta">[03] / ALERT</span>
+            <p>Set one target price. We ping you the instant a retailer undercuts it.</p>
+        </div>
+        <div class="hero__cell hero__cell--cta">
+            <a class="btn btn--green" href="#grid">Start Comparing →</a>
         </div>
     </div>
 </section>
+<div class="marquee" aria-hidden="true">
+    <div class="marquee__track">
+        <div class="marquee__seg">
+            <span>+ FOR SAVVY SHOPPERS +</span><span>+ FOR SAVVY SHOPPERS +</span><span>+ FOR SAVVY SHOPPERS +</span>
+            <span>+ FOR SAVVY SHOPPERS +</span><span>+ FOR SAVVY SHOPPERS +</span><span>+ FOR SAVVY SHOPPERS +</span>
+        </div>
+        <div class="marquee__seg">
+            <span>+ FOR SAVVY SHOPPERS +</span><span>+ FOR SAVVY SHOPPERS +</span><span>+ FOR SAVVY SHOPPERS +</span>
+            <span>+ FOR SAVVY SHOPPERS +</span><span>+ FOR SAVVY SHOPPERS +</span><span>+ FOR SAVVY SHOPPERS +</span>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    var SHAPES = {
+        headphones: '<path d="M16 42v-6a16 16 0 0 1 32 0v6" fill="none" stroke="#fff" stroke-width="3"/><rect x="10" y="40" width="9" height="18" rx="3" fill="#fff"/><rect x="45" y="40" width="9" height="18" rx="3" fill="#fff"/>',
+        shoe: '<path d="M6 46h42v-8c0-4-3-6-7-7l-10-3-6-12-6 4 3 12-9-2-4-6-4 2v10z" fill="#fff"/><path d="M6 50h42" stroke="#c8ff00" stroke-width="2"/>',
+        laptop: '<rect x="8" y="14" width="44" height="28" fill="none" stroke="#fff" stroke-width="3"/><rect x="13" y="19" width="34" height="18" fill="#9d4edd"/><path d="M4 46h52l-4 6H8z" fill="#fff"/>',
+        phone: '<rect x="20" y="6" width="24" height="48" rx="4" fill="none" stroke="#fff" stroke-width="3"/><rect x="24" y="12" width="16" height="32" fill="#c8ff00"/><circle cx="32" cy="49" r="2" fill="#fff"/>',
+        watch: '<rect x="24" y="4" width="16" height="12" fill="#fff"/><rect x="24" y="44" width="16" height="12" fill="#fff"/><rect x="16" y="12" width="32" height="36" rx="8" fill="none" stroke="#fff" stroke-width="3"/><circle cx="32" cy="30" r="7" fill="#9d4edd"/>',
+        camera: '<rect x="6" y="16" width="52" height="36" rx="4" fill="#fff"/><circle cx="32" cy="34" r="12" fill="#000"/><circle cx="32" cy="34" r="6" fill="#c8ff00"/><rect x="22" y="10" width="20" height="8" fill="#fff"/>',
+        monitor: '<rect x="6" y="10" width="52" height="34" fill="none" stroke="#fff" stroke-width="3"/><rect x="11" y="15" width="42" height="24" fill="#9d4edd"/><path d="M26 44h12v8h8v3H18v-3h8z" fill="#fff"/>',
+        keyboard: '<rect x="4" y="18" width="56" height="28" rx="3" fill="#fff"/><g fill="#000"><rect x="9" y="23" width="6" height="6"/><rect x="18" y="23" width="6" height="6"/><rect x="27" y="23" width="6" height="6"/><rect x="36" y="23" width="6" height="6"/><rect x="45" y="23" width="10" height="6"/><rect x="9" y="32" width="46" height="5"/></g><rect x="9" y="40" width="24" height="4" fill="#c8ff00"/>'
+    };
+
+    function svg(shape) {
+        return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+            (SHAPES[shape] || SHAPES.headphones) + '</svg>';
+    }
+    document.querySelectorAll(".hero__cut").forEach(function (el) {
+        el.innerHTML = "<img src='" + svg(el.dataset.shape) + "' style='width:70%;height:70%;object-fit:contain;' />";
+    });
+</script>
 {% endblock %}
